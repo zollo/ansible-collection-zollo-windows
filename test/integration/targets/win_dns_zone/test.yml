@@ -1,0 +1,32 @@
+---
+- hosts: testdns_winrm
+  vars_prompt:
+  - name: ansible_user
+    prompt: "What is your AD username?"
+    private: true
+  - name: ansible_password
+    prompt: "What is your AD password?"
+    private: true
+  tasks:
+  - name: Ensure primary DNS zone is present
+    win_dns_zone:
+      name: cn3200.hooli.com
+      type: primary
+
+  - name: Ensure primary DNS zone is absent
+    win_dns_zone:
+      name: cn3200.hooli.com
+      state: absent
+
+  - name: Ensure conditional forwarder is present
+    win_dns_zone:
+      name: fwd28278.hooli.com
+      type: forwarder
+      dns_servers:
+      - 172.16.140.22
+      - 172.16.140.23
+
+  - name: Ensure conditional forwarder is absent
+    win_dns_zone:
+      name: fwd28278.hooli.com
+      state: absent

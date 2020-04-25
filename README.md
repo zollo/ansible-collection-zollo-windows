@@ -1,8 +1,8 @@
-# Ansible Collection: Windows DHCP
+# Ansible Collection: Windows Server [WORK IN PROGRESS]
 
-This repo hosts the `joezollo.dhcp` Ansible Collection.
+This repo hosts the `joezollo.windows.server` Ansible Collection.
 
-The collection includes a variety of Ansible content to help automate the management of DHCP in Windows Server.
+The collection includes a variety of Ansible content to help automate the management of Windows Server.
 
 ## Included content
 
@@ -12,6 +12,8 @@ Click on the name of a plugin or module to view that content's documentation:
     - [win_dhcp_lease]()
     - [win_dhcp_scope]()
     - [win_dhcp_info]()
+    - [win_dns_zone]()
+    - [win_dns_info]()
 
 ## Installation and Usage
 
@@ -19,26 +21,20 @@ Click on the name of a plugin or module to view that content's documentation:
 
 Before using this collection, you need to install it with the Ansible Galaxy CLI:
 
-    ansible-galaxy collection install joezollo.dhcp
+    ansible-galaxy collection install joezollo.windows.server
 
 You can also include it in a `requirements.yml` file and install it via `ansible-galaxy collection install -r requirements.yml`, using the format:
 
 ```yaml
 ---
 collections:
-  - name: joezollo.dhcp
+  - name: joezollo.windows.server
     version: 1.0.0
 ```
 
-### Installing the OpenShift Python Library
-
-Content in this collection requires the [OpenShift Python client](https://pypi.org/project/openshift/) to interact with Kubernetes' APIs. You can install it with:
-
-    pip3 install openshift
-
 ### Using modules from the DHCP Collection in your playbooks
 
-You can either call modules by their Fully Qualified Collection Namespace (FQCN), like `joezollo.dhcp.win_dhcp_lease`, or you can call modules by their short name if you list the `joezollo.dhcp` collection in the playbook's `collections`, like so:
+You can either call modules by their Fully Qualified Collection Namespace (FQCN), like `joezollo.windows.server.win_dhcp_lease`, or you can call modules by their short name if you list the `joezollo.windows.server` collection in the playbook's `collections`, like so:
 
 ```yaml
 ---
@@ -47,7 +43,7 @@ You can either call modules by their Fully Qualified Collection Namespace (FQCN)
   connection: local
 
   collections:
-    - joezollo.dhcp
+    - joezollo.windows.server
 
   tasks:
     - name: Ensure the DHCP scope exists
@@ -77,14 +73,13 @@ You can run the collection's test suites with the commands:
 
 ### Testing with `molecule`
 
-There are also integration tests in the `molecule` directory which are meant to be run against a local Kubernetes cluster, e.g. using [KinD](https://kind.sigs.k8s.io) or [Minikube](https://minikube.sigs.k8s.io). To run the tests, set up a local cluster, then run Molecule:
+There are also integration tests in the `molecule` directory which are meant to be run against a local DNS or DHCP server.
 
-    kind create cluster
     molecule test
 
 ## Publishing New Versions
 
-The current process for publishing new versions of the Kubernetes Collection is manual, and requires a user who has access to the `joezollo.dhcp` namespace on Ansible Galaxy to publish the build artifact.
+The current process for publishing new versions of the DNS/DHCP Collection is manual, and requires a user who has access to the `joezollo.windows.server` namespace on Ansible Galaxy to publish the build artifact.
 
   1. Ensure `CHANGELOG.md` contains all the latest changes.
   2. Update `galaxy.yml` and this README's `requirements.yml` example with the new `version` for the collection.
@@ -93,10 +88,10 @@ The current process for publishing new versions of the Kubernetes Collection is 
 
      ```
      ansible-galaxy collection build
-     ansible-galaxy collection publish ./community-kubernetes-$VERSION_HERE.tar.gz
+     ansible-galaxy collection publish ./joezollo-windows-server-$VERSION_HERE.tar.gz
      ```
 
-After the version is published, verify it exists on the [Kubernetes Collection Galaxy page](https://galaxy.ansible.com/community/kubernetes).
+After the version is published, verify it exists on the [Windows Server Collection Galaxy page](https://galaxy.ansible.com/).
 
 ## More Information
 

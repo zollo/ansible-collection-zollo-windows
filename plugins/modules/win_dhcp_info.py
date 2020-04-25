@@ -62,46 +62,41 @@ EXAMPLES = r'''
   win_dhcp_info:
     type: reservation
   register: dhcp
-  delegate_to: dhcp-chall-euc.vmware.com
 
 - name: Gather info on all DHCP leases in the 192.168.55.0 scope
   win_dhcp_info:
     type: lease
     scope_id: 192.168.55.0
   register: dhcp
-  delegate_to: dhcp-xyz-euc.vmware.com
 
 - name: Gather info on a DHCP reservation with the MAC address 00-A1-B2-C2-D4-E5
   win_dhcp_info:
     type: reservation
     mac: 00-A1-B2-C2-D4-E5
   register: dhcp
-  delegate_to: dhcp-xyz-euc.vmware.com
 
 - name: Gather info on a DHCP reservation with the MAC address 00-A1-B2-C2-D4-E5
   win_dhcp_info:
     type: reservation
     mac: 00-A1-B2-C2-D4-E5
   register: dhcp
-  delegate_to: dhcp-xyz-euc.vmware.com
 
 - name: Convert DHCP lease to reservation & update description
   win_dhcp_lease:
     type: reservation
     ip: 192.168.100.205
     description: Testing Server
-  delegate_to: dhcp-dgemzer-euc.vmware.com
 
 - name: Convert DHCP reservation to lease
   win_dhcp_lease:
     type: lease
     ip: 192.168.100.205
-  delegate_to: dhcp-jamals-euc.vmware.com
 '''
 
 RETURN = r'''
 leases:
   description: DHCP Lease(s) and Reservations
+  returned: 
   type: list
   sample:
   - client_id: 00-0A-1B-2C-3D-4F
@@ -119,6 +114,7 @@ leases:
 
 scopes:
   description: DHCP Scope(s)
+  returned: 
   type: list
   sample:
   - name: 10.0.1.0-vlan1

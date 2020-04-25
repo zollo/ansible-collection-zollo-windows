@@ -54,9 +54,7 @@ Function Convert-ReturnValue {
         $Object
     )
 
-    # TODO: Use camelconversion here instead of manual
-
-    $data = @{
+    return @{
         address_state = $Object.AddressState
         client_id     = $Object.ClientId
         ip_address    = $Object.IPAddress.IPAddressToString
@@ -64,8 +62,6 @@ Function Convert-ReturnValue {
         name          = $Object.Name
         description   = $Object.Description
     }
-
-    return $data
 }
 
 $spec = @{
@@ -78,44 +74,30 @@ $spec = @{
         subnet_mask = @{ type = "int" }
         subnet_length = @{ type = "int" }
         subnet_delay = @{ type = "str" }
+        exclusion_list = @{ type = "list" }
         lease_duration = @{ type = "str" }
         description = @{ type = "str" }
-        scope_options = @{
-            state = @{ type = "str"; choices = "absent", "present"; default = "present" }
-        }
+        scope_options = @{ type = "list" }
+        value = @{ type = "list"; elements = "str"; default = @() ; aliases=@( 'values' )}
     }
     supports_check_mode = $true
 }
 
 $module = [Ansible.Basic.AnsibleModule]::Create($args, $spec)
-$module.Result.changed = $false
 $check_mode = $module.CheckMode
 
-$type = $module.Params.type
-$ip = $module.Params.ip
-$scope_id = $module.Params.scope_id
-$mac = $module.Params.mac
-$duration = $module.Params.duration
-$dns_hostname = $module.Params.dns_hostname
-$dns_regtype = $module.Params.dns_regtype
+$state = $module.Params.state
+$active = $module.Params.active
+$name = $module.Params.name
+$pool_start = $module.Params.pool_start
+$pool_end = $module.Params.pool_end
+$subnet_mask = $module.Params.subnet_mask
+$subnet_length = $module.Params.subnet_length
 $subnet_delay = $module.Params.subnet_delay
+$exclusion_list = $module.Params.exclusion_list
 $lease_duration = $module.Params.lease_duration
+$description = $module.Params.description
 $scope_options = $module.Params.scope_options
-
-
-$state = Get-AnsibleParam -obj $params -name "state" -type "str"
-$name = Get-AnsibleParam -obj $params -name "name" -type "str"
-$active = Get-AnsibleParam -obj $params -name "active" -type "bool"
-$description = Get-AnsibleParam -obj $params -name "description" -type "str"
-$pool_start = Get-AnsibleParam -obj $params -name "pool_start" -type "str"
-$pool_end = Get-AnsibleParam -obj $params -name "pool_end" -type "str"
-$subnet_mask = Get-AnsibleParam -obj $params -name "subnet_mask" -type "str"
-$subnet_length = Get-AnsibleParam -obj $params -name "subnet_length" -type "str"
-$exclusion_list = Get-AnsibleParam -obj $params -name "exclusion_list" -type "str"
-$subnet_delay = Get-AnsibleParam -obj $params -name "subnet_delay" -type "str"
-$lease_duration = Get-AnsibleParam -obj $params -name "lease_duration" -type "str"
-$scope_options = Get-AnsibleParam -obj $params -name "scope_options" -type "list"
-
 
 <#
 
@@ -126,26 +108,6 @@ $scope_options = Get-AnsibleParam -obj $params -name "scope_options" -type "list
 252 = Web Proxy Auto Discover 
 
 #>
-
-
-# Client Config Params
-$id = Get-AnsibleParam -obj $params -name "id" -type "str"
-$type = Get-AnsibleParam -obj $params -name "type" -type "str"
-$name = Get-AnsibleParam -obj $params -name "name" -type "str"
-$default_value = Get-AnsibleParam -obj $params -name "default_value" -type "str"
-$description = Get-AnsibleParam -obj $params -name "description" -type "str"
-$state = Get-AnsibleParam -obj $params -name "state" -type "str" -default "present" -validateset ("absent", "present", "server", "scope", "reservation")
-$value = Get-AnsibleParam -obj $params -name "value" -type "str"
-
-# State = Scope
-$scope_id = Get-AnsibleParam -obj $params -name "scope_id" -type "str"
-
-# State = Reservation
-$reservation_ip = Get-AnsibleParam -obj $params -name "reservation_ip" -type "str"
-$dns_domain = Get-AnsibleParam -obj $params -name "dns_domain" -type "str"
-$dns_server = Get-AnsibleParam -obj $params -name "dns_server" -type "str"
-
-
 
 <#
 
