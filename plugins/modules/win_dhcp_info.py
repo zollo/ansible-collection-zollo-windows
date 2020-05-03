@@ -12,12 +12,12 @@ ANSIBLE_METADATA = {'status': ['preview'],
 DOCUMENTATION = r'''
 ---
 module: win_dhcp_info
-short_description: Gathers Info on Windows Server DHCP
+short_description: Gathers Info on Windows Server DHCP Objects
 author: Joe Zollo (@joezollo)
 requirements:
   - This module requires Windows Server 2012 or Newer
 description:
-  - Gathers Info on Windows Server DHCP Leases and Scopes
+  - Gathers Info on Windows Server DHCP Objects
 options:
   type:
     description:
@@ -63,34 +63,38 @@ EXAMPLES = r'''
     type: reservation
   register: dhcp
 
+- name: Gather info on a DHCP reservation with the MAC address 00-A1-B2-C2-D4-E5
+  win_dhcp_info:
+    type: reservation
+    mac: 00-A1-B2-C2-D4-E5
+  register: dhcp
+
+- name: Gather info on all DHCP leases
+  win_dhcp_info:
+    type: lease
+  register: dhcp
+
+- name: Gather info on all DHCP scopes
+  win_dhcp_info:
+    type: scope
+  register: dhcp
+
 - name: Gather info on all DHCP leases in the 192.168.55.0 scope
   win_dhcp_info:
     type: lease
     scope_id: 192.168.55.0
   register: dhcp
 
-- name: Gather info on a DHCP reservation with the MAC address 00-A1-B2-C2-D4-E5
+- name: Gather info on all DHCP reservations, leases and scopes
   win_dhcp_info:
-    type: reservation
-    mac: 00-A1-B2-C2-D4-E5
-  register: dhcp
-
-- name: Gather info on a DHCP reservation with the MAC address 00-A1-B2-C2-D4-E5
-  win_dhcp_info:
-    type: reservation
-    mac: 00-A1-B2-C2-D4-E5
-  register: dhcp
-
-- name: Convert DHCP lease to reservation & update description
-  win_dhcp_lease:
-    type: reservation
-    ip: 192.168.100.205
-    description: Testing Server
-
-- name: Convert DHCP reservation to lease
-  win_dhcp_lease:
     type: lease
-    ip: 192.168.100.205
+  register: dhcp
+
+- name: Gather info on a DHCP reservation with the MAC address 00-A1-B2-C2-D4-E5
+  win_dhcp_info:
+    type: reservation
+    mac: 00-A1-B2-C2-D4-E5
+  register: dhcp
 '''
 
 RETURN = r'''

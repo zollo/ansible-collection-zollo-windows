@@ -1,13 +1,13 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-# Copyright © 2019 VMware, Inc. All Rights Reserved.
+# Copyright: (c) 2020 VMware, Inc. All Rights Reserved.
 # SPDX-License-Identifier: GPL-3.0-only
-# Ansible Module by Joseph Zollo (jzollo@vmware.com)
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-ANSIBLE_METADATA = {'metadata_version': '1.0',
-                    'status': ['preview'],
-                    'supported_by': 'community'}
+ANSIBLE_METADATA = {'status': ['preview'],
+                    'supported_by': 'community',
+                    'metadata_version': '1.1'}
 
 DOCUMENTATION = r'''
 ---
@@ -63,37 +63,30 @@ author:
 EXAMPLES = r'''
 - name: Ensure primary DNS zone is present
   win_dns_zone:
-    name: pinner.euc.vmware.com
+    name: wpinner.euc.vmware.com
     replication: domain
     type: primary
+    state: present
 
-- name: Update/ensure DNS forwarder zone has set DNS servers
+- name: Ensure DNS zone is absent
   win_dns_zone:
-    name: pinner.euc.vmware.com
-    replication: domain
-    type: primary
+    name: jamals.euc.vmware.com
+    state: absent
+
+- name: Ensure conditional forwarder has specific DNS servers
+  win_dns_zone:
+    name: jamals.euc.vmware.com
+    type: forwarder
+    dns_servers:
+    - 10.245.51.100
+    - 10.245.51.101
+    - 10.245.51.102
 
 - name: Ensure primary DNS zone is present without replication
   win_dns_zone:
     name: basavaraju.euc.vmware.com
     replication: none
     type: primary
-
-- name: Ensure conditional forwarder is present
-  win_dns_zone:
-    name: jamals.euc.vmware.com
-    type: forwarder
-    dns_servers:
-    - 10.230.50.22
-    - 10.230.50.21
-
-- name: Ensure conditional forwarder is consistent
-  win_dns_zone:
-    name: jamals.euc.vmware.com
-    dns_servers:
-    - 10.245.51.100
-    - 10.245.51.101
-    - 10.245.51.102
 
 - name: Ensure DNS zone is absent
   win_dns_zone:

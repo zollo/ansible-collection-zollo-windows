@@ -8,29 +8,23 @@
 
 $spec = @{
     options = @{
-        name = @{ type = "str"; }
-        type = @{ type = "str"; choices = "primary","secondary","forwarder","stub"; default = "primary" }
-        replication = @{ type = "str"; choices = "forest", "domain", "legacy"; default = "forest" }
-        dynamic_update = @{ type = "str"; default = "secure", "none", "nonsecureandsecure" }
-        state = @{ type = "str"; choices = "absent", "present"; default = "present" }
-        dns_servers = @{ type = "list"; }
+        type = @{ type = "str"; choices = "zone", "record", "all"; default = "all" }
+        zone_name = @{ type = "str"; }
+        zone_type = @{ type = "str"; choices = "primary","secondary","forwarder","stub"; default = "forest" }
+        record_type = @{ type = "str"; choices = "A","AAAA","MX","CNAME","PTR","NS","TXT","all"; default = "all" }
+        record_name = @{ type = "str"; choices = "absent", "present"; default = "present" }
     }
-    required_if = @(
-        @("state", "present", @("mac", "ip"), $true),
-        @("state", "absent", @("mac", "ip"), $true)
-    )
     supports_check_mode = $true
 }
 
 $module = [Ansible.Basic.AnsibleModule]::Create($args, $spec)
 $check_mode = $module.CheckMode
 
-$name = $module.Params.name
 $type = $module.Params.type
-$replication = $module.Params.replication
-$dynamic_update = $module.Params.dynamic_update
-$state = $module.Params.state
-$dns_servers = $module.Params.dns_servers
+$zone_name = $module.Params.zone_name
+$zone_type = $module.Params.zone_type
+$record_name = $module.Params.record_name
+$record_type = $module.Params.record_type
 
 # Result KVP
 $result = @{
@@ -58,12 +52,6 @@ Function Get-DnsObject {
     Param(
         [PSObject]$Original
     )
-
-
-}
-
-Function Convert-RetrunValue {
-    
 }
 
 Try {
@@ -126,7 +114,7 @@ if ($state -eq "present") {
                 } else {
                     # Zone type is consistent, check other values
                     # We can change the replication scope and dynamic update setting
-                    # Set-DnsServerPrimaryZone
+                    
                 }
             }
         }
