@@ -93,7 +93,7 @@ Function Get-AllDhcpLeaseObjects {
     }
 
     # Return the Filtered List
-    $leases
+    return $leases
 }
 
 Function Convert-IPAddressToMac {

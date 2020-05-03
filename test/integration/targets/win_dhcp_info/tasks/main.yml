@@ -11,15 +11,24 @@
     ansible.windows.win_reboot:
     when: dhcp_role.reboot_required
 
-  - name: Add the DHCP scope
-    ansible.windows.win_shell: |
-      Add-DhcpServerv4Scope -Name "TestNetwork" -StartRange {{ dhcp_scope_start }} -EndRange {{dhcp_scope_end }} -SubnetMask {{ dhcp_scope_subnet_mask }}
+  - block:
+    - name: Add the DHCP scope
+      ansible.windows.win_shell: |
+        Add-DhcpServerv4Scope -Name "TestNetwork" -StartRange {{ item.start }} -EndRange {{ item.end }} -SubnetMask {{ item.subnet }}
+      loop: "{{ dhcp_scope_testing }}"
 
-  - name: Run tests without check mode
+    - name: Create New DHCP Leases
+      community.windows.win_dhcp_lease:
+        type: "{{ item.type }}"
+        ip: "{{ item.ip }}"
+        scope_id: "{{ iitem.scope_id }}"
+        mac: "{{ item.mac }}"
+        dns_hostname: "{{ item.dns_hostname }}"
+        description: TestLeaseSuperAwesome
+      loop: "{{ dhcp_testing_leases }}"
+
+  - name: Run tests
     include_tasks: tests.yml
-
-  - name: Run tests in check mode
-    include_tasks: tests_checkmode.yml
 
   always:
   - name: Remove the DHCP scope
