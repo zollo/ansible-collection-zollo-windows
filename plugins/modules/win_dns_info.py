@@ -61,33 +61,40 @@ EXAMPLES = r'''
 - name: Update/ensure DNS forwarder zone has set DNS servers
   win_dns_info:
     zone_name: shri.euc.vmware.com
-
 '''
 
 RETURN = r'''
 zones:
-  description: New/Updated DNS zone parameters
+  description: DNS zones with records
   type: dict
   sample:
-    - name: sde.euc.vmware.com
+    - name: rds.vmware.com
       type: 
       dynamic_update: 
       state: 
       replication: 
       nameservers: 
       dns_records:
-        - name: 
-          fqdn: 
-          type: 
-          ttl: 
-    - name: rds.euc.vmware.com
-      type: 
+        - name: basavaraju
+          fqdn: basavaraju.rds.vmware.com
+          type: A
+          data: 172.16.75.100
+          ttl: 3600
+        - name: dgemzer
+          fqdn: dgemzer.rds.vmware.com
+          type: MX
+          data: 0 test-mail.rds.vmware.com
+          ttl: 900
+    - name: sde.vmware.com
+      type: primary
       dynamic_update: 
       state: 
       replication: 
       nameservers: 
       dns_records:
-        - name: 
-          type: 
-          ttl: 
+        - name: chall
+          fqdn: chall.sde.vmware.com
+          type: CNAME
+          data: chall-prod.sde.vmware.com
+          ttl: 3600
 '''
