@@ -17,7 +17,6 @@ $spec = @{
 }
 
 $module = [Ansible.Basic.AnsibleModule]::Create($args, $spec)
-$check_mode = $module.CheckMode
 
 $type = $module.Params.type
 $ip = $module.Params.ip
@@ -59,15 +58,6 @@ Function Get-DhcpLeaseReturnObject {
         name            = $Object.Name
         description     = $Object.Description
     }
-}
-
-Function Get-DhcpObject {
-    param(
-        [Parameter(Mandatory=$false)]$Type,
-        [Parameter(Mandatory=$false)]$ClientId
-    )
-
-
 }
 
 Function Get-AllDhcpLeaseObjects {
@@ -160,7 +150,12 @@ if($ip) {
 
 # Retreive Scope
 if($scope_id) {
-    $current_scope = Get-DhcpServerv4Scope -ScopeId $scope_id
+    Try {
+        $current_scope = Get-DhcpServerv4Scope -ScopeId $scope_id
+    }
+    Catch {
+        $module.FailJson("Unable to retrive scope from DHCP server", $_)
+    }
 }
 
 # Retreive All Scopes

@@ -90,10 +90,10 @@ EXAMPLES = r'''
     type: lease
   register: dhcp
 
-- name: Gather info on a DHCP reservation with the MAC address 00-A1-B2-C2-D4-E5
+- name: Gather info on a DHCP lease with the MAC address 00:AA:BB:C3:E4:F5
   win_dhcp_info:
-    type: reservation
-    mac: 00-A1-B2-C2-D4-E5
+    type: lease
+    mac: '00:AA:BB:C3:E4:F5'
   register: dhcp
 '''
 

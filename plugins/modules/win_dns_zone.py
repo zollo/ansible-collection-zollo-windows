@@ -11,7 +11,7 @@ ANSIBLE_METADATA = {'status': ['preview'],
 
 DOCUMENTATION = r'''
 ---
-module: win_dhcp_lease
+module: win_dns_zone
 short_description: Manage Windows Server DNS Zones
 author: Joe Zollo (@joezollo)
 requirements:
@@ -47,7 +47,7 @@ options:
     description:
       - Specifies the replication scope for the DNS zone.
       - Setting l(replication=none) disables AD replication and creates a zone file with the name of the zone.
-      - This is the equivalent of checking l(store the zone in Active Directory).
+      - This is the equivalent of checking l(store the zone in Active Directory) in the GUI.
     type: str
     default: forest
     choices: [ forest, domain, legacy, none ]
