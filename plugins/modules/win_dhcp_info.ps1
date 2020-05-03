@@ -101,8 +101,13 @@ Function Convert-IPAddressToMac {
         [Parameter(Mandatory=$true)]$IPAddress
     )
 
-    $lease = Get-AllDhcpLeaseObjects -Type "all" | Where-Object {
-        $_.IPAddress -like $IPAddress
+    Try {
+        $lease = Get-AllDhcpLeaseObjects -Type "all" | Where-Object {
+            $_.IPAddress -like $IPAddress
+        }
+    }
+    Catch {
+        return $false
     }
 
     return $lease.ClientId
@@ -136,7 +141,7 @@ Function Convert-MacAddress {
 
 Try {
     # Import DHCP Server PS Module
-    #Import-Module DhcpServer
+    Import-Module DhcpServer
 }
 Catch {
     # Couldn't load the DhcpServer Module
