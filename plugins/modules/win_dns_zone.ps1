@@ -32,7 +32,8 @@ $dynamic_update = $module.Params.dynamic_update
 $state = $module.Params.state
 $dns_servers = $module.Params.dns_servers
 
-# Result KVP
+$parms = @{}
+
 $result = @{
     changed = $false
 }
@@ -97,6 +98,7 @@ Try {
     }
 }
 Catch {
+    # Couldn't find zone on DNS server
     $current_zone = $false
     $current_zone_err = $_
 }
@@ -106,7 +108,6 @@ if ($state -eq "present") {
     switch ($type) {
 
         "primary" {
-            # Add the primary zone
             if ($current_zone -eq $false) {
                 # Zone is not present
                 Try {
@@ -122,14 +123,49 @@ if ($state -eq "present") {
                     $module.FailJson("Unable to add DNS zone: $($_.Exception.Message)", $_)
                 }
             } else {
+
                 # Zone is present, ensure it's consistent with the desired state
+
                 if (-not $current_zone_type_match) {
-                    # Zone type mismatch, cannot change
-                    $module.FailJson("Unable to convert DNS zone")
+
+                    # Zone does not match type - attempt conversion
+
+                    Try {
+                        $current_zone = $current_zone | ConvertTo-DnsServerPrimaryZone
+                    }
+                    Catch {
+                        $module.FailJson("Failed to convert DNS zone",$_)
+                    }
+
                 } else {
-                    # Zone type is consistent, check other values
-                    # We can change the replication scope and dynamic update setting
-                    # Set-DnsServerPrimaryZone
+
+                    # Zone matches type, try to set other properties (Dynamic Update/Rep. Scope)
+
+                    Try {
+                        # Check dynamic update
+                        if($current_zone.DynamicUpdate -notlike $dynamic_update) {
+                            $current_zone = $current_zone | Set-DnsServerPrimaryZone -DynamicUpdate $dynamic_update
+                        }
+    
+                        # Check replication scope
+                        if($current_zone.ReplicationScope -notlike $replication) {
+
+                            # Special condition, convert from non replicated to replicated
+                            if($current_zone.ReplicationScope -notlike 'none' -and ($replication -like 'none')) {
+                                $current_zone = $current_zone | ConvertTo-DnsServerPrimaryZone -ReplicationScope $replication
+                            }
+
+                            # Special condition, convert from replicated to non replicated
+                            if($current_zone.ReplicationScope -like 'none' -and ($replication -notlike 'none')) {
+                                $current_zone = $current_zone | ConvertTo-DnsServerPrimaryZone -ReplicationScope $replication
+                            }
+
+                        }
+                    }
+                    Catch {
+                        $module.FailJson("Failed to set property on the zone $zone_name",$_)
+                    }
+
                 }
             }
         }
@@ -231,12 +267,15 @@ if ($state -eq "present") {
 
 # Ensure the DNS zone is absent
 if ($state -eq "absent") {
-    Try {
-        Remove-DnsServerZone -Name $name -Force
-        $result.changed = $true
-    }
-    Catch {
-        $module.FailJson("Could not remove DNS zone: $($_.Exception.Message)", $_)
+    if($current_zone) {
+        # Zone is present in DNS server, let's remove it
+        Try {
+            Remove-DnsServerZone -Name $name -Force
+            $result.changed = $true
+        }
+        Catch {
+            $module.FailJson("Could not remove DNS zone: $($_.Exception.Message)", $_)
+        }
     }
 }
 
