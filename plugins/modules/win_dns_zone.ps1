@@ -59,6 +59,9 @@ Function Get-DnsObject {
         [PSObject]$Original
     )
 
+    return @{
+        
+    }
 
 }
 

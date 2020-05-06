@@ -10,9 +10,10 @@ $spec = @{
     options = @{
         type = @{ type = "str"; choices = "zone", "record", "all"; default = "all" }
         zone_name = @{ type = "str"; }
-        zone_type = @{ type = "str"; choices = "primary","secondary","forwarder","stub"; default = "forest" }
-        record_type = @{ type = "str"; choices = "A","AAAA","MX","CNAME","PTR","NS","TXT","all"; default = "all" }
-        record_name = @{ type = "str"; choices = "absent", "present"; default = "present" }
+        zone_type = @{ type = "str"; choices = "primary","secondary","forwarder","stub"; }
+        record_name = @{ type = "str"; }
+        record_type = @{ type = "str"; choices = "A","AAAA","MX","CNAME","PTR","NS","TXT"; }
+        filter_ad = @{ type = "bool"; default = $false }
     }
     supports_check_mode = $true
 }
@@ -25,33 +26,104 @@ $zone_name = $module.Params.zone_name
 $zone_type = $module.Params.zone_type
 $record_name = $module.Params.record_name
 $record_type = $module.Params.record_type
+$filter_ad = $module.Params.filter_ad
 
-# Result KVP
-$result = @{
-    changed = $false
-}
+$module.Result.zones = @()
+$module.Result.records = @()
+$parms = @{}
 
-Function Compare-DnsZone {
-    Param(
-        [PSObject]$Original,
-        [PSObject]$New
-    )
-
-    # Compare values that we care about
-    -not (
-        ($Original.IsDsIntegrated -eq $New.IsDsIntegrated) -and
-        ($Original.IsReverseLookupZone -eq $New.IsReverseLookupZone) -and
-        ($Original.ZoneName -eq $New.ZoneName) -and
-        ($Original.ZoneType -eq $New.ZoneType) -and
-        ($Original.DynamicUpdate -eq $New.DynamicUpdate) -and
-        ($Original.ReplicationScope -eq $New.ReplicationScope)
-    )
-}
-
-Function Get-DnsObject {
+Function Get-DnsRecordFilter {
     Param(
         [PSObject]$Original
     )
+
+    return $Original | Where-Object {
+        ($_.HostName -notlike '_kerberos*') -or 
+        ($_.HostName -notlike '_ldap*') -or 
+        ($_.HostName -notlike '_kpasswd*') -or 
+        ($_.HostName -notlike '_gc*') -or 
+        ($_.HostName -notlike 'gc._msdcs')
+    }
+}
+
+Function Get-DnsZoneRecordsObject {
+    Param(
+        [String]$ZoneName,
+        [String]$RRType,
+        [Boolean]$FilterAd
+    )
+
+    $parms = @{
+        ZoneName = $ZoneName
+    }
+
+    if($RRType) {
+        $parms.RRType = $RRType
+    }
+
+    $records = Get-DnsServerResourceRecord @parms
+
+    # Check for FilterAd flag
+    if($FilterAd) {
+        $records = Get-DnsRecordFilter -Original $records
+    }
+
+    $record_list = @()
+    foreach($item in $records) {
+        $record_list += Get-DnsRecordObject -ZoneName $ZoneName -Original $item
+    }
+
+    return $record_list
+}
+
+Function Get-DnsRecordObject {
+    Param(
+        [PSObject]$Original,
+        [String]$ZoneName
+    )
+
+    return @{
+        name    = $Object.HostName
+        fqdn    = $Object.HostName + '.' + $ZoneName
+        type    = $Object.RecordType
+        data    = $Object.ScopeId.IPAddressToString
+        ttl     = $Object.TimeToLive.TotalSeconds
+    }
+}
+
+Function Get-DnsZoneObject {
+    Param(
+        [PSObject]$Original
+    )
+    $parms = @{
+        name            = $Object.ZoneName
+        dynamic_update  = $Object.DynamicUpdate
+    }
+
+    # Parse Master Servers (Fwd)
+    if($Object.ZoneType -eq 'Forwarder') {
+        $parms.dns_servers = @()
+        $Object.MasterServers | ForEach-Object {
+            $parms.dns_servers += $_.IPAddressToString
+        }
+    }
+
+    # Parse Zone Type
+    if($Object.IsReverseLookupZone) {
+        $parms.type = 'Reverse'
+    } else {
+        $parms.type = $Object.ZoneType
+    }
+
+    # Parse AD Replication/Scope
+    if($Object.IsReverseLookupZone) {
+        $parms.replication = $false
+        $parms.zone_file = $Object.ZoneFile
+    } else {
+        $parms.replication = $Object.ReplicationScope
+    }
+
+    return $parms
 }
 
 Try {
@@ -63,166 +135,77 @@ Catch {
     $module.FailJson("The DnsServer module failed to load properly: $($_.Exception.Message)", $_)
 }
 
-# Check the current state
+# Evaluate Zone Type
+if(-not $zone_type) {
+    # Zone type not defined, set flag to wildcard
+    $zone_type = '*'
+}
+
+# Retreive Zone(s)
 Try {
-    # Attempt to find the zone
-    $current_zone = Get-DnsServerZone -name $name
-
-    # Load a custom object
-    $current_zone = Get-DnsObject -Original $current_zone
-
-    # Compare against param values
-    if ($current_zone.ZoneType -like $type) {
-        $current_zone_type_match = $true
-    }
-    
-    # Compare against param values
-    if ($current_zone.ZoneName -like $name) {
-        $current_zone_name_match = $true
+    if($zone_name) {
+        # Get the zone we requested, we don't care about type
+        $zones_tmp = Get-DnsServerZone -Name $zone_name
+    } else {
+        # Get all the zones
+        $zones_tmp = Get-DnsServerZone | Where-Object {
+            $_.ZoneType -like $zone_type
+        }
     }
 }
 Catch {
-    $current_zone = $false
-    $current_zone_err = $_
+    $module.FailJson("Unable to retreive zone(s) from DNS server: $($_.Exception.Message)", $_)
 }
 
-# Ensure the DNS zone is present
-if ($state -eq "present") {
-    switch ($type) {
-
-        "primary" {
-            # Add the primary zone
-            if ($current_zone -eq $false) {
-                # Zone is not present
-                Try {
-                    # Check for non-AD integrated zone
-                    if($replication -eq "none") {
-                        Add-DnsServerPrimaryZone -Name $name -ZoneFile "$name.dns" -DynamicUpdate $dynamic_update
-                    } else {
-                        Add-DnsServerPrimaryZone -Name $name -ReplicationScope $replication -DynamicUpdate $dynamic_update
-                    }
-                    $result.changed = $true
-                }
-                Catch {
-                    $module.FailJson("Unable to add DNS zone: $($_.Exception.Message)", $_)
-                }
-            } else {
-                # Zone is present, ensure it's consistent with the desired state
-                if (-not $current_zone_type_match) {
-                    # Zone type mismatch, cannot change
-                    $module.FailJson("Unable to convert DNS zone")
-                } else {
-                    # Zone type is consistent, check other values
-                    # We can change the replication scope and dynamic update setting
-                    
-                }
+# Retreive Record(s)
+Try {
+    if($record_name) {
+        # Evaluate the number of zones retreived
+        if($zones_tmp.count) {
+            # We're requesting multiple zones and requesting a record - invalid
+            $module.FailJson("Cannot specify record_name when requesting more than one zone")
+        }
+        # Get the record we requested filter by record_type
+        $record_tmp = Get-DnsServerResourceRecord -ZoneName $zone_name
+        # Filter by record type
+        if($record_type) {
+            $records_tmp = $records_tmp | Where-Object {
+                ($_.RecordType -like $record_type)
             }
         }
+    } else {
+        # Looking for all records
+        # Get all records for all zones, filter by record type
 
-        "secondary" {
-            if ($current_zone -eq $false) {
-                # Zone is not present
-                Try {
-                    # Check for non-AD integrated zone
-                    if($replication -eq "none") {
-                        Add-DnsServerSecondaryZone -Name $name -ZoneFile "$name.dns" -DynamicUpdate $dynamic_update
-                    } else {
-                        Add-DnsServerSecondaryZone -Name $name -ReplicationScope $replication -DynamicUpdate $dynamic_update
-                    }
-                    $result.changed = $true
-                }
-                Catch {
-                    $module.FailJson("Unable to add DNS zone: $($_.Exception.Message)", $_)
-                }
-            }
-            else {
-                # Zone is present, ensure it's consistent with the desired state
-                if (-not $current_zone_type_match) {
-                    # Zone type mismatch, cannot change
-                    $module.FailJson("Unable to convert DNS zone")
-                } else {
-                    # Zone type is consistent, check other values
-                    # We can change the replication scope and dynamic update setting
-                    # Set-DnsServerSecondaryZone
-                }
-            }
+
+        # Loop Over Zones
+        foreach($z in $zones_tmp) {
+            # Get a Parsed Object
+            $z_obj = Get-DnsZoneObject -Original $z
+            # Get a list of DNS Records in the Zone (Already Filtered by Record Type)
+            $z_obj.dns_records = Get-DnsZoneRecordsObject -ZoneName $z.ZoneName -FilterAd $filter_ad
+            $module.Result.zones += Get-DnsZoneObject -Original $z
+            # Loop Over Records
         }
 
-        "stub" {
-            if ($current_zone -eq $false) {
-                # Zone is not present
-                Try {
-                    # Check for non-AD integrated zone
-                    if($replication -eq "none") {
-                        Add-DnsServerStubZone -Name $name -MasterServers $dns_servers -ZoneFile "$name.dns"
-                    } else {
-                        Add-DnsServerStubZone -Name $name -ReplicationScope $replication -MasterServers $dns_servers
-                    }
-                    $result.changed = $true
-                }
-                Catch {
-                    $module.FailJson("Unable to add DNS zone: $($_.Exception.Message)", $_)
-                }
+        $record_tmp = Get-DnsServerResourceRecord -ZoneName $zone_name
+        # Filter by record type
+        if($record_type) {
+            $records_tmp = $records_tmp | Where-Object {
+                ($_.RecordType -like $record_type)
             }
-            else {
-                # Zone is present, ensure it's consistent with the desired state
-                if (-not $current_zone_type_match) {
-                    # Zone type mismatch, cannot change
-                    $module.FailJson("Unable to convert DNS zone")
-                } else {
-                    # Zone type is consistent, check other values
-                    # Set-DnsServerStubZone
-                }
-            }
-        }
-
-        "forwarder" {
-            if ($current_zone -eq $false) {
-                # Zone is not present
-                Try {
-                    # Check for non-AD integrated zone
-                    if($replication -eq "none") {
-                        Add-DnsServerConditionalForwarderZone -Name $name -ZoneFile "$name.dns" -MasterServers $dns_servers
-                    } else {
-                        Add-DnsServerConditionalForwarderZone -Name $name -ReplicationScope $replication -MasterServers $dns_servers
-                    }
-                    $result.changed = $true
-                }
-                Catch {
-                    $module.FailJson("Unable to add DNS zone: $($_.Exception.Message)", $_)
-                }
-            }
-            else {
-                # Zone is present, ensure it's consistent with the desired state
-                if (-not $current_zone_type_match) {
-                    # Zone type mismatch, cannot change
-                    $module.FailJson("Unable to convert DNS zone")
-                } else {
-                    # Zone type is consistent, check other values
-                    # We can change the replication scope and MasterServers
-                    Update-DnsZone -Type "fowarder"
-                    Try {
-                        Set-DnsServerConditionalForwarderZone -MasterServers $dns_servers -ReplicationScope $replication
-                    }
-                    Catch {
-                        $module.FailJson("Unable to update DNS zone: $($_.Exception.Message)", $_)
-                    }
-                    
-                }
-            }
-        }
+        } 
     }
 }
-
-# Ensure the DNS zone is absent
-if ($state -eq "absent") {
-    Try {
-        Remove-DnsServerZone -Name $name -Force
-        $result.changed = $true
-    }
-    Catch {
-        $module.FailJson("Could not remove DNS zone: $($_.Exception.Message)", $_)
-    }
+Catch {
+    $module.FailJson("Unable to retreive record(s) from DNS server: $($_.Exception.Message)", $_)
 }
+
+# if type record is specified, we need the zone name, we need the record name OR type (finds all A records)
+
+# if type zone is specified, record_x is ignored, zone_type/name is optional
+
+# if type all is specified, we need nothing, if a zone name is specified we will filter by it,
+
 
 $module.ExitJson()
