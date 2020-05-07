@@ -125,7 +125,6 @@ if ($state -eq "present") {
             } else {
 
                 # Zone is present, ensure it's consistent with the desired state
-
                 if (-not $current_zone_type_match) {
 
                     # Zone does not match type - attempt conversion
@@ -140,13 +139,12 @@ if ($state -eq "present") {
                 } else {
 
                     # Zone matches type, try to set other properties (Dynamic Update/Rep. Scope)
-
                     Try {
                         # Check dynamic update
                         if($current_zone.DynamicUpdate -notlike $dynamic_update) {
                             $current_zone = $current_zone | Set-DnsServerPrimaryZone -DynamicUpdate $dynamic_update
                         }
-    
+
                         # Check replication scope
                         if($current_zone.ReplicationScope -notlike $replication) {
 
@@ -229,6 +227,8 @@ if ($state -eq "present") {
 
         "forwarder" {
             if ($current_zone -eq $false) {
+
+
                 # Zone is not present
                 Try {
                     # Check for non-AD integrated zone
@@ -242,8 +242,13 @@ if ($state -eq "present") {
                 Catch {
                     $module.FailJson("Unable to add DNS zone: $($_.Exception.Message)", $_)
                 }
+
+
             }
             else {
+
+
+
                 # Zone is present, ensure it's consistent with the desired state
                 if (-not $current_zone_type_match) {
                     # Zone type mismatch, cannot change
@@ -260,6 +265,9 @@ if ($state -eq "present") {
                     }
                     
                 }
+
+
+
             }
         }
     }
