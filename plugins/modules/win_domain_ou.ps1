@@ -34,6 +34,10 @@ $dns_servers = $module.Params.dns_servers
 
 $parms = @{}
 
+$result = @{
+    changed = $false
+}
+
 Function Compare-DnsZone {
     Param(
         [PSObject]$Original,
@@ -60,23 +64,6 @@ Function Get-DnsObject {
         
     }
 
-}
-
-Function Convert-DnsZone
-{
-    [CmdletBinding()]
-    param (
-        [Parameter()]
-        [String]$To,
-        [PSObject]$Original
-    )
-
-    if($To -like 'primary') {
-        return ($Original | ConvertTo-DnsServerPrimaryZone)
-    }
-    if($To -like 'secondary') {
-        return ($Original | ConvertTo-DnsServerSecondaryZone)
-    }
 }
 
 Function Convert-RetrunValue {
@@ -143,7 +130,7 @@ if ($state -eq "present") {
                     # Zone does not match type - attempt conversion
 
                     Try {
-                        $current_zone = Convert-DnsZone -Original $current_zone -To $zone_type 
+                        $current_zone = $current_zone | ConvertTo-DnsServerPrimaryZone
                     }
                     Catch {
                         $module.FailJson("Failed to convert DNS zone",$_)
@@ -178,7 +165,6 @@ if ($state -eq "present") {
                     }
 
                 }
-
             }
         }
 
@@ -188,9 +174,9 @@ if ($state -eq "present") {
                 Try {
                     # Check for non-AD integrated zone
                     if($replication -eq "none") {
-                        Add-DnsServerSecondaryZone -Name $name -MasterServers $dns_servers -ZoneFile "$name.dns" -DynamicUpdate $dynamic_update
+                        Add-DnsServerSecondaryZone -Name $name -ZoneFile "$name.dns" -DynamicUpdate $dynamic_update
                     } else {
-                        Add-DnsServerSecondaryZone -Name $name -MasterServers $dns_servers -ReplicationScope $replication -DynamicUpdate $dynamic_update
+                        Add-DnsServerSecondaryZone -Name $name -ReplicationScope $replication -DynamicUpdate $dynamic_update
                     }
                     $result.changed = $true
                 }
@@ -201,17 +187,8 @@ if ($state -eq "present") {
             else {
                 # Zone is present, ensure it's consistent with the desired state
                 if (-not $current_zone_type_match) {
-
-
-                    # Zone does not match type - attempt conversion
-
-                    Try {
-                        $current_zone = Convert-DnsZone -Original $current_zone -To $zone_type 
-                    }
-                    Catch {
-                        $module.FailJson("Failed to convert DNS zone",$_)
-                    }
-
+                    # Zone type mismatch, cannot change
+                    $module.FailJson("Unable to convert DNS zone")
                 } else {
                     # Zone type is consistent, check other values
                     # We can change the replication scope and dynamic update setting
@@ -239,17 +216,8 @@ if ($state -eq "present") {
             else {
                 # Zone is present, ensure it's consistent with the desired state
                 if (-not $current_zone_type_match) {
-
-
-                    # Zone does not match type - attempt conversion
-
-                    Try {
-                        $current_zone = Convert-DnsZone -Original $current_zone -To $zone_type 
-                    }
-                    Catch {
-                        $module.FailJson("Failed to convert DNS zone",$_)
-                    }
-
+                    # Zone type mismatch, cannot change
+                    $module.FailJson("Unable to convert DNS zone")
                 } else {
                     # Zone type is consistent, check other values
                     # Set-DnsServerStubZone
@@ -283,25 +251,14 @@ if ($state -eq "present") {
 
                 # Zone is present, ensure it's consistent with the desired state
                 if (-not $current_zone_type_match) {
-
-                    # Zone does not match type - attempt conversion
-
-                    Try {
-                        $current_zone = Convert-DnsZone -Original $current_zone -To $zone_type 
-                    }
-                    Catch {
-                        $module.FailJson("Failed to convert DNS zone",$_)
-                    }
-
+                    # Zone type mismatch, cannot change
+                    $module.FailJson("Unable to convert DNS zone")
                 } else {
-
-
                     # Zone type is consistent, check other values
                     # We can change the replication scope and MasterServers
                     Update-DnsZone -Type "fowarder"
                     Try {
                         Set-DnsServerConditionalForwarderZone -MasterServers $dns_servers -ReplicationScope $replication
-                        $result.changed = $true
                     }
                     Catch {
                         $module.FailJson("Unable to update DNS zone: $($_.Exception.Message)", $_)

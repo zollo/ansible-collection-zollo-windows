@@ -11,13 +11,13 @@ ANSIBLE_METADATA = {'status': ['preview'],
 
 DOCUMENTATION = r'''
 ---
-module: win_dns_zone
-short_description: Manage Windows Server DNS Zones
+module: win_domain_ou
+short_description: Manage Active Directory Organizational Units
 author: Joe Zollo (@joezollo)
 requirements:
   - This module requires Windows Server 2012 or Newer
 description:
-  - Manage Windows Server DNS Zones
+  - Manage Active Directory Organizational Units
   - Adds, Removes and Modifies DNS Zones, Forward, Stub & Reverse
   - Task should be delegated to a Windows DNS Server
 options:
@@ -54,9 +54,8 @@ options:
   dns_servers:
     description:
       - Specifies an list of IP addresses of the master servers of the zone.
-      - Required if l(type=secondary), l(type=forwarder) or l(type=stub), otherwise ignored.
+      - Required if l(type=forwarder) or l(type=stub), otherwise ignored.
     type: list
-    alias: master_servers
 author:
 - Joseph Zollo (@joezollo)
 '''
