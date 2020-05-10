@@ -159,8 +159,6 @@ Catch {
     $current_zone = $false
 }
 
-
-
 if ($state -eq "present") {
     if(-not $current_zone) { # build parms for new zone creation
         if ($replication -eq 'none') { $parms.ReplicationScope = $parms.ZoneFile = "$name.dns" }
