@@ -27,7 +27,10 @@ options:
     type: str
   type:
     description:
-      - Specifies the type of DNS zone
+      - Specifies the type of DNS zone.
+      - Secondary DNS zones will attempt to perform a zone transfer
+        from a master server l(dns_servers) immediately after being 
+        added.
     type: str
     default: primary
     choices: [ primary, secondary, stub, forwarder ]
@@ -35,7 +38,6 @@ options:
     description:
       - Specifies how a zone accepts dynamic updates.
     type: str
-    default: secure
     choices: [ secure, none, nonsecureandsecure ]
   state:
     description:
@@ -43,13 +45,21 @@ options:
     type: str
     default: present
     choices: [ present, absent ]
+  forwarder_timeout:
+    description:
+      - Specifies a length of time, in seconds, that a DNS server 
+        waits for a master server to resolve a query.
+      - Accepts values between 0 and 15.
+    type: int
   replication:
     description:
       - Specifies the replication scope for the DNS zone.
-      - Setting l(replication=none) disables AD replication and creates a zone file with the name of the zone.
-      - This is the equivalent of checking l(store the zone in Active Directory) in the GUI.
+      - Setting l(replication=none) disables AD replication and creates 
+        a zone file with the name of the zone.
+      - This is the equivalent of checking l(store the zone in Active 
+        Directory) in the GUI.
+      - Required when l(state=present)
     type: str
-    default: forest
     choices: [ forest, domain, legacy, none ]
   dns_servers:
     description:
@@ -62,7 +72,7 @@ author:
 '''
 
 EXAMPLES = r'''
-- name: Ensure primary DNS zone is present
+- name: Ensure primary zone is present
   win_dns_zone:
     name: wpinner.euc.vmware.com
     replication: domain
@@ -74,14 +84,43 @@ EXAMPLES = r'''
     name: jamals.euc.vmware.com
     state: absent
 
-- name: Ensure conditional forwarder has specific DNS servers
+- name: Ensure forwarder has specific DNS servers
   win_dns_zone:
     name: jamals.euc.vmware.com
     type: forwarder
     dns_servers:
-    - 10.245.51.100
-    - 10.245.51.101
-    - 10.245.51.102
+      - 10.245.51.100
+      - 10.245.51.101
+      - 10.245.51.102
+
+- name: Ensure stub zone has specific DNS servers
+  win_dns_zone:
+    name: virajp.euc.vmware.com
+    type: stub
+    dns_servers:
+      - 10.58.2.100
+      - 10.58.2.101
+
+- name: Ensure stub zone is converted to a secondary zone
+  win_dns_zone:
+    name: virajp.euc.vmware.com
+    type: secondary
+
+- name: Ensure secondary zone is present with no replication
+  win_dns_zone:
+    name: dgemzer.euc.vmware.com
+    type: secondary
+    replication: none
+    dns_servers:
+      - 10.19.20.1
+
+- name: Ensure secondary zone is converted to a primary zone
+  win_dns_zone:
+    name: dgemzer.euc.vmware.com
+    type: primary
+    replication: none
+    dns_servers:
+      - 10.19.20.1
 
 - name: Ensure primary DNS zone is present without replication
   win_dns_zone:
@@ -93,6 +132,17 @@ EXAMPLES = r'''
   win_dns_zone:
     name: marshallb.euc.vmware.com
     state: absent
+
+- name: Ensure DNS zones are absent
+  win_dns_zone:
+    name: "{{ item }}"
+    state: absent
+  loop:
+    - jamals.euc.vmware.com
+    - dgemzer.euc.vmware.com
+    - wpinner.euc.vmware.com
+    - marshallb.euc.vmware.com
+    - basavaraju.euc.vmware.com
 '''
 
 RETURN = r'''
@@ -101,10 +151,14 @@ zone:
   returned: When l(state=present)
   type: dict
   sample:
-    name: 
-    type: 
-    dynamic_update: 
-    state: 
-    replication: 
-    dns_servers: 
+    name:
+    type:
+    dynamic_update:
+    reverse_lookup:
+    forwarder_timeout: 
+    paused:
+    shutdown: 
+    zone_file:
+    replication:
+    dns_servers:
 '''

@@ -7,18 +7,15 @@
 #AnsibleRequires -CSharpUtil Ansible.Basic
 
 $spec = @{
-    options = @{
-        name = @{ type = "str"; }
-        type = @{ type = "str"; choices = "primary","secondary","forwarder","stub"; default = "primary" }
-        replication = @{ type = "str"; choices = "forest", "domain", "legacy"; default = "forest" }
-        dynamic_update = @{ type = "str"; default = "secure", "none", "nonsecureandsecure" }
-        state = @{ type = "str"; choices = "absent", "present"; default = "present" }
-        dns_servers = @{ type = "list"; }
+    options             = @{
+        name              = @{ type = "str"; required = $true }
+        type              = @{ type = "str"; choices = "primary", "secondary", "forwarder", "stub"; default = "primary" }
+        replication       = @{ type = "str"; choices = "forest", "domain", "legacy", "none" }
+        dynamic_update    = @{ type = "str"; choices = "secure", "none", "nonsecureandsecure"; }
+        state             = @{ type = "str"; choices = "absent", "present"; default = "present" }
+        forwarder_timeout = @{ type = "int" }
+        dns_servers       = @{ type = "list" }
     }
-    required_if = @(
-        @("state", "present", @("mac", "ip"), $true),
-        @("state", "absent", @("mac", "ip"), $true)
-    )
     supports_check_mode = $true
 }
 
@@ -31,56 +28,117 @@ $replication = $module.Params.replication
 $dynamic_update = $module.Params.dynamic_update
 $state = $module.Params.state
 $dns_servers = $module.Params.dns_servers
+$forwarder_timeout = $module.Params.forwarder_timeout
 
-$parms = @{}
+$parms = @{
+    name = $name
+}
+
+Function Get-DnsZoneObject {
+    Param(
+        [PSObject]$Object
+    )
+    $parms = @{
+        name     = $Object.ZoneName.toLower()
+        type     = $Object.ZoneType.toLower()
+        paused   = $Object.IsPaused
+        shutdown = $Object.IsShutdown
+    }
+
+    # Parse Params
+    if ($Object.DynamicUpdate) { $parms.DynamicUpdate = $Object.DynamicUpdate.toLower() }
+    if ($Object.IsReverseLookupZone) { $parms.reverse_lookup = $Object.IsReverseLookupZone }
+    if ($Object.ZoneType -like 'forwarder' ) { $parms.forwarder_timeout = $Object.ForwarderTimeout }
+    if ($Object.MasterServers) { $parms.dns_servers = $Object.MasterServers.IPAddressToString }
+
+    # Parse Params: AD Replication/Scope
+    if (-not $Object.IsDsIntegrated) {
+        $parms.replication = "none"
+        $parms.zone_file = $Object.ZoneFile
+    }
+    else {
+        $parms.replication = $Object.ReplicationScope.toLower()
+    }
+
+    return $parms | Sort-Object
+}
+
+Function Update-DnsReplication {
+    Param(
+        [PSObject]$Current,
+        [PSObject]$ReplicationScope,
+        [String]$ZoneType,
+        [Boolean]$CheckMode
+    )
+
+    if($Current.IsDsIntegrated -and $ReplicationScope -notlike 'none') {
+        switch ($ZoneType) {
+            "primary" { Set-DnsServerPrimaryZone @parms -WhatIf:$CheckMode }
+            "secondary" { Set-DnsServerSecondaryZone @parms -WhatIf:$CheckMode }
+            "stub" { Set-DnsServerStubZone @parms -WhatIf:$CheckMode }
+            "forwarder" { Set-DnsServerConditionalForwarderZone @parms -WhatIf:$CheckMode }
+        }
+        return $true
+    } else {
+        return $false
+    }
+}
 
 Function Compare-DnsZone {
     Param(
-        [PSObject]$Original,
+        [PSObject]$Orig,
         [PSObject]$New
     )
 
     # Compare values that we care about
     -not (
-        ($Original.IsDsIntegrated -eq $New.IsDsIntegrated) -and
-        ($Original.IsReverseLookupZone -eq $New.IsReverseLookupZone) -and
-        ($Original.ZoneName -eq $New.ZoneName) -and
         ($Original.ZoneType -eq $New.ZoneType) -and
-        ($Original.DynamicUpdate -eq $New.DynamicUpdate) -and
-        ($Original.ReplicationScope -eq $New.ReplicationScope)
+        ($Original.IPAddress -eq $New.IPAddress) -and
+        ($Original.ScopeId -eq $New.ScopeId) -and
+        ($Original.Name -eq $New.Name) -and
+        ($Original.Description -eq $New.Description)
     )
 }
 
-Function Get-DnsObject {
+Function Compare-IpList {
     Param(
-        [PSObject]$Original
+        [PSObject]$Current,
+        [PSObject]$Desired
     )
 
-    return @{
-        
-    }
+    # Ensure that all of the desired IP's are in the current list
+    $Desired | ForEach-Object { if ($_ -notin $Current) { return $false } }
 
+    # No conflicts found, return true
+    return $true
 }
 
-Function Convert-DnsZone
-{
+Function Convert-DnsZone {
     [CmdletBinding()]
     param (
         [Parameter()]
         [String]$To,
+        [String]$ReplicationScope,
+        [String]$MasterServers,
         [PSObject]$Original
     )
 
-    if($To -like 'primary') {
-        return ($Original | ConvertTo-DnsServerPrimaryZone)
-    }
-    if($To -like 'secondary') {
-        return ($Original | ConvertTo-DnsServerSecondaryZone)
-    }
-}
+    $parms = @{ }
 
-Function Convert-RetrunValue {
-    
+    # Converting to primary from secondary
+    if ($To -like 'primary') {
+        # If AD Integrated, set ReplicationScope instead of zone
+        if ($Original.IsDsIntegrated) { $parms.ReplicationScope = $ReplicationScope } else { $parms.ZoneFile = $Original.ZoneFile }
+        $Original | ConvertTo-DnsServerPrimaryZone @parms -Force
+    }
+
+    # Converting to secondary from primary or stub (AD integrated not supported)
+    if ($To -like 'secondary') {
+        # Ensure MasterServers and ZoneFile are defined params
+        if ($MasterServers) { $parms.MasterServers = $MasterServers }
+        if ($Original.ZoneFile) { $parms.ZoneFile = $Original.ZoneFile } 
+        $Original | ConvertTo-DnsServerSecondaryZone @parms -Force
+    }
 }
 
 Try {
@@ -94,222 +152,195 @@ Catch {
 
 # Check the current state
 Try {
-    # Attempt to find the zone
     $current_zone = Get-DnsServerZone -name $name
-
-    # Load a custom object
-    $current_zone = Get-DnsObject -Original $current_zone
-
-    # Compare against param values
-    if ($current_zone.ZoneType -like $type) {
-        $current_zone_type_match = $true
-    }
-    
-    # Compare against param values
-    if ($current_zone.ZoneName -like $name) {
-        $current_zone_name_match = $true
-    }
+    if ($current_zone.ZoneType -like $type) { $current_zone_type_match = $true }
 }
 Catch {
-    # Couldn't find zone on DNS server
     $current_zone = $false
-    $current_zone_err = $_
 }
 
-# Ensure the DNS zone is present
+
+
 if ($state -eq "present") {
+    if(-not $current_zone) { # build parms for new zone creation
+        if ($replication -eq 'none') { $parms.ReplicationScope = $parms.ZoneFile = "$name.dns" }
+        if ($replication) { $parms.ReplicationScope = $replication }
+        if ($dynamic_update) { $parms.ReplicationScope = $dynamic_update }
+        if ($dns_servers) { $parms.MasterServers = $dns_servers }
+    } else { # build parms for zone update
+        if ($replication) { $parms.ReplicationScope = $replication }
+        if ($dynamic_update) { $parms.DynamicUpdate = $dynamic_update }
+        if ($dns_servers) { $parms.MasterServers = $dns_servers }
+        #$current_zone.IsDsIntegrated -and ($current_zone.DynamicUpdate -notlike $dynamic_update)) { $parms.DynamicUpdate = $dynamic_update }
+    }
+
     switch ($type) {
-
         "primary" {
-            if ($current_zone -eq $false) {
-                # Zone is not present
-                Try {
-                    # Check for non-AD integrated zone
-                    if($replication -eq "none") {
-                        Add-DnsServerPrimaryZone -Name $name -ZoneFile "$name.dns" -DynamicUpdate $dynamic_update
-                    } else {
-                        Add-DnsServerPrimaryZone -Name $name -ReplicationScope $replication -DynamicUpdate $dynamic_update
-                    }
-                    $result.changed = $true
-                }
-                Catch {
-                    $module.FailJson("Unable to add DNS zone: $($_.Exception.Message)", $_)
-                }
+            if (-not $current_zone) {
+                Try { Add-DnsServerPrimaryZone @parms -WhatIf:$check_mode }
+                Catch { $module.FailJson("Failed to add $type zone $($name): $($_.Exception.Message)", $_) }
+                $module.Result.changed = $true
             } else {
-
-                # Zone is present, ensure it's consistent with the desired state
                 if (-not $current_zone_type_match) {
-
-                    # Zone does not match type - attempt conversion
-
-                    Try {
-                        $current_zone = Convert-DnsZone -Original $current_zone -To $zone_type 
-                    }
-                    Catch {
-                        $module.FailJson("Failed to convert DNS zone",$_)
-                    }
-
-                } else {
-
-                    # Zone matches type, try to set other properties (Dynamic Update/Rep. Scope)
-                    Try {
-                        # Check dynamic update
-                        if($current_zone.DynamicUpdate -notlike $dynamic_update) {
-                            $current_zone = $current_zone | Set-DnsServerPrimaryZone -DynamicUpdate $dynamic_update
-                        }
-
-                        # Check replication scope
-                        if($current_zone.ReplicationScope -notlike $replication) {
-
-                            # Special condition, convert from non replicated to replicated
-                            if($current_zone.ReplicationScope -notlike 'none' -and ($replication -like 'none')) {
-                                $current_zone = $current_zone | ConvertTo-DnsServerPrimaryZone -ReplicationScope $replication
-                            }
-
-                            # Special condition, convert from replicated to non replicated
-                            if($current_zone.ReplicationScope -like 'none' -and ($replication -notlike 'none')) {
-                                $current_zone = $current_zone | ConvertTo-DnsServerPrimaryZone -ReplicationScope $replication
-                            }
-
-                        }
-                    }
-                    Catch {
-                        $module.FailJson("Failed to set property on the zone $zone_name",$_)
-                    }
-
+                    Try { Convert-DnsZone -Original $current_zone -To $type } 
+                    Catch { $module.FailJson("Failed to convert DNS zone $($name): $($_.Exception.Message)", $_) }
                 }
 
+                Try {
+                    # check parms
+
+                    # check replication
+                    
+                    # set properties
+                    Set-DnsServerPrimaryZone @parms -WhatIf:$CheckMode
+                    $module.Result.changed = $true
+                } Catch {
+                    $module.FailJson("Failed to set properties on the zone $($name): $($_.Exception.Message)", $_)
+                }
             }
         }
-
         "secondary" {
-            if ($current_zone -eq $false) {
-                # Zone is not present
+            if (-not $current_zone) {
                 Try {
-                    # Check for non-AD integrated zone
-                    if($replication -eq "none") {
-                        Add-DnsServerSecondaryZone -Name $name -MasterServers $dns_servers -ZoneFile "$name.dns" -DynamicUpdate $dynamic_update
-                    } else {
-                        Add-DnsServerSecondaryZone -Name $name -MasterServers $dns_servers -ReplicationScope $replication -DynamicUpdate $dynamic_update
-                    }
-                    $result.changed = $true
-                }
-                Catch {
-                    $module.FailJson("Unable to add DNS zone: $($_.Exception.Message)", $_)
+                    # build params
+                    
+                    else { $module.FailJson("The dns_servers param is required when creating a new secondary zone") }
+                    # create zone
+                    Add-DnsServerSecondaryZone @parms -WhatIf:$check_mode
+                    $module.Result.changed = $true
+                } Catch {
+                    $module.FailJson("Failed to add $type zone $($name): $($_.Exception.Message)", $_)
                 }
             }
             else {
-                # Zone is present, ensure it's consistent with the desired state
                 if (-not $current_zone_type_match) {
-
-
-                    # Zone does not match type - attempt conversion
-
                     Try {
-                        $current_zone = Convert-DnsZone -Original $current_zone -To $zone_type 
-                    }
-                    Catch {
-                        $module.FailJson("Failed to convert DNS zone",$_)
-                    }
+                        # check for stub (AD) to secondary conversion
+                        if ($current_zone.ZoneType -like 'stub' -and $current_zone.IsDsIntegrated) {
+                            $module.FailJson("Converting Active Directory integrated stub zone to secondary zone is unsupported")
+                        }
 
-                } else {
-                    # Zone type is consistent, check other values
-                    # We can change the replication scope and dynamic update setting
-                    # Set-DnsServerSecondaryZone
+                        # conversion path: primary/stub to secondary
+                        if (($current_zone.ZoneType -like 'primary') -or ($current_zone.ZoneType -like 'stub')) {
+                            Convert-DnsZone -Original $current_zone -To $type -ReplicationScope $replication -MasterServers $dns_servers
+                            $module.Result.changed = $true
+                        } else {
+                            $module.FailJson("Converting $($current_zone.ZoneType) to secondary zone is unsupported")
+                        }
+                    } Catch {
+                        $module.FailJson("Failed to convert DNS zone: $($_.Exception.Message)", $_)
+                    }
+                }
+
+                Try {
+                    # check dns_servers
+                    if ($dns_servers -and (-not (Compare-IpList -Desired $dns_servers -Current $current_zone.MasterServers.IPAddressToString))) {
+                        $parms.MasterServers = $dns_servers
+                    }
+                    # set properties
+                    Set-DnsServerSecondaryZone @parms -WhatIf:$check_mode
+                    $module.Result.changed = $true
+                } Catch {
+                    $module.FailJson("Failed to set properties on the zone $($name): $($_.Exception.Message)", $_)
                 }
             }
         }
-
         "stub" {
             if ($current_zone -eq $false) {
-                # Zone is not present
                 Try {
-                    # Check for non-AD integrated zone
-                    if($replication -eq "none") {
-                        Add-DnsServerStubZone -Name $name -MasterServers $dns_servers -ZoneFile "$name.dns"
-                    } else {
-                        Add-DnsServerStubZone -Name $name -ReplicationScope $replication -MasterServers $dns_servers
-                    }
-                    $result.changed = $true
+                    # build params
+                    if (-not $replication) { $parms.ReplicationScope = 'forest' }
+                    elseif ($replication -like 'none') { $parms.ZoneFile = "$name.dns" }
+                    else { $parms.ReplicationScope = $replication }
+                    if ($dns_servers) { $parms.MasterServers = $dns_servers }
+                    else { $module.FailJson("The dns_servers param is required when creating a new stub zone", $_) }
+                    # create zone
+                    Add-DnsServerStubZone @parms -WhatIf:$check_mode
+                    $module.Result.changed = $true
                 }
                 Catch {
-                    $module.FailJson("Unable to add DNS zone: $($_.Exception.Message)", $_)
+                    $module.FailJson("Failed to add $type zone $($name): $($_.Exception.Message)", $_)
                 }
             }
             else {
-                # Zone is present, ensure it's consistent with the desired state
                 if (-not $current_zone_type_match) {
+                    # fail: bad conversion path
+                    $module.FailJson("Converting from a $($current_zone.ZoneType) zone to a stub zone is unsupported", $_)
+                }
 
-
-                    # Zone does not match type - attempt conversion
-
-                    Try {
-                        $current_zone = Convert-DnsZone -Original $current_zone -To $zone_type 
+                Try {
+                    # check dns_servers
+                    if ($dns_servers -and (-not (Compare-IpList -Desired $dns_servers -Current $current_zone.MasterServers.IPAddressToString))) {
+                        $parms.MasterServers = $dns_servers
                     }
-                    Catch {
-                        $module.FailJson("Failed to convert DNS zone",$_)
+
+                    # check replication
+                    if ($replication -and ($current_zone.ReplicationScope -notlike $replication)) {
+                        if ((($current_zone.ReplicationScope -notlike 'none') -and ($replication -notlike 'none')) -or (($current_zone.ReplicationScope -like 'none') -and ($replication -like 'none'))) {
+                            $parms.ReplicationScope = $replication
+                        } else {
+                            $module.FailJson("Converting between a file backed DNS zone and an Active Directory integrated zone is unsupported")
+                        }
                     }
 
-                } else {
-                    # Zone type is consistent, check other values
-                    # Set-DnsServerStubZone
+                    Set-DnsServerStubZone @parms -WhatIf:$check_mode
+                    $module.Result.changed = $true
+                }
+                Catch {
+                    $module.FailJson("Failed to set properties on the zone $($name): $($_.Exception.Message)", $_)
                 }
             }
         }
-
         "forwarder" {
             if ($current_zone -eq $false) {
-
-
-                # Zone is not present
                 Try {
-                    # Check for non-AD integrated zone
-                    if($replication -eq "none") {
-                        Add-DnsServerConditionalForwarderZone -Name $name -ZoneFile "$name.dns" -MasterServers $dns_servers
-                    } else {
-                        Add-DnsServerConditionalForwarderZone -Name $name -ReplicationScope $replication -MasterServers $dns_servers
-                    }
-                    $result.changed = $true
+                    # build params
+                    if (-not $replication) { $parms.ReplicationScope = 'forest' }
+                    elseif ($replication -like 'none') { $parms.ZoneFile = "$name.dns" }
+                    else { $parms.ReplicationScope = $replication }
+                    if ($dns_servers) { $parms.MasterServers = $dns_servers }
+                    else { $module.FailJson("The dns_servers param is required when creating a new stub zone", $_) }
+
+                    # validate: forwarder_input
+                    if ($forwarder_timeout -and ($forwarder_timeout -le 15) -and ($forwarder_timeout -ge 0)) {$parms.ForwarderTimeout = $forwarder_timeout }
+                    if ($forwarder_timeout -and (($forwarder_timeout -gt 15) -or ($forwarder_timeout -lt 0))) { $module.Warn("The forwarder_timeout param must be between 0 and 15") }
+                    
+                    # create record
+                    Add-DnsServerConditionalForwarderZone @parms -WhatIf:$check_mode
+                    $module.Result.changed = $true
                 }
                 Catch {
-                    $module.FailJson("Unable to add DNS zone: $($_.Exception.Message)", $_)
+                    $module.FailJson("Failed to add $type zone $($name): $($_.Exception.Message)", $_)
                 }
-
-
             }
             else {
-
-
-
-                # Zone is present, ensure it's consistent with the desired state
                 if (-not $current_zone_type_match) {
-
-                    # Zone does not match type - attempt conversion
-
-                    Try {
-                        $current_zone = Convert-DnsZone -Original $current_zone -To $zone_type 
-                    }
-                    Catch {
-                        $module.FailJson("Failed to convert DNS zone",$_)
-                    }
-
-                } else {
-
-
-                    # Zone type is consistent, check other values
-                    # We can change the replication scope and MasterServers
-                    Update-DnsZone -Type "fowarder"
-                    Try {
-                        Set-DnsServerConditionalForwarderZone -MasterServers $dns_servers -ReplicationScope $replication
-                        $result.changed = $true
-                    }
-                    Catch {
-                        $module.FailJson("Unable to update DNS zone: $($_.Exception.Message)", $_)
-                    }
-                    
+                    # fail: bad conversion path
+                    $module.FailJson("Converting from a $($current_zone.ZoneType) zone to a condititonal forwarder is unsupported", $_)
                 }
 
+                Try {
+                    # check dns_servers
+                    if ($dns_servers) { $parms.MasterServers = $dns_servers }
 
+                    # check forwarder_timeout
+                    if ($forwarder_timeout) { $parms.ForwarderTimeout = $forwarder_timeout }
+
+                    # check replication
+                    if ($replication -and ($current_zone.ReplicationScope -notlike $replication)) {
+                        if ((($current_zone.ReplicationScope -notlike 'none') -and ($replication -notlike 'none')) -or (($current_zone.ReplicationScope -like 'none') -and ($replication -like 'none'))) {
+                            $parms.ReplicationScope = $replication
+                        } else {
+                            $module.FailJson("Converting between a file backed DNS zone and an Active Directory integrated zone is unsupported")
+                        }
+                    }
+                    # set params
+                    Set-DnsServerConditionalForwarderZone @parms -WhatIf:$check_mode
+                    $module.Result.changed = $true
+                }
+                Catch {
+                    $module.FailJson("Failed to set properties on the zone $($name): $($_.Exception.Message)", $_)
+                }
 
             }
         }
@@ -318,16 +349,22 @@ if ($state -eq "present") {
 
 # Ensure the DNS zone is absent
 if ($state -eq "absent") {
-    if($current_zone) {
+    if ($current_zone) {
         # Zone is present in DNS server, let's remove it
         Try {
-            Remove-DnsServerZone -Name $name -Force
-            $result.changed = $true
+            Remove-DnsServerZone -Name $name -Force -WhatIf:$check_mode
+            $module.Result.changed = $true
         }
         Catch {
             $module.FailJson("Could not remove DNS zone: $($_.Exception.Message)", $_)
         }
     }
+}
+
+# Parse the results
+if (($module.Result.changed -eq $true) -and ($state -eq 'present')) {
+    $obj = (Get-DnsServerZone -name $name)
+    $module.Result.zone = Get-DnsZoneObject -Object $obj
 }
 
 $module.ExitJson()

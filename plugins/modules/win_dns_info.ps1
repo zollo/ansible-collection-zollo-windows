@@ -93,38 +93,36 @@ Function Get-DnsRecordObject {
 
 Function Get-DnsZoneObject {
     Param(
-        [PSObject]$Original
+        [PSObject]$Object
     )
     $parms = @{
-        name            = $Object.ZoneName
-        dynamic_update  = $Object.DynamicUpdate
+        name            = $Object.ZoneName.toLower()
+        type            = $Object.ZoneType.toLower()
+        paused          = $Object.IsPaused
+        shutdown        = $Object.IsShutdown
     }
 
-    # Parse Master Servers (Fwd)
-    if($Object.ZoneType -eq 'Forwarder') {
-        $parms.dns_servers = @()
-        $Object.MasterServers | ForEach-Object {
-            $parms.dns_servers += $_.IPAddressToString
-        }
-    }
+    # Parse Params
+    if($Object.DynamicUpdate) { $parms.DynamicUpdate = $Object.DynamicUpdate.toLower() }
+    if($Object.IsReverseLookupZone) { $parms.reverse_lookup = $Object.IsReverseLookupZone }
 
-    # Parse Zone Type
-    if($Object.IsReverseLookupZone) {
-        $parms.type = 'Reverse'
-    } else {
-        $parms.type = $Object.ZoneType
+    # Parse Master Servers for forwarder zone
+    if($Object.ZoneType -like 'forwarder') {
+        $parms.dns_servers = $Object.MasterServers.IPAddressToString
+        $parms.forwarder_timeout = $Object.ForwarderTimeout
     }
 
     # Parse AD Replication/Scope
-    if($Object.IsReverseLookupZone) {
-        $parms.replication = $false
+    if(-not $Object.IsDsIntegrated) {
+        $parms.replication = "none"
         $parms.zone_file = $Object.ZoneFile
     } else {
-        $parms.replication = $Object.ReplicationScope
+        $parms.replication = $Object.ReplicationScope.toLower()
     }
 
     return $parms
 }
+
 
 Try {
     # Import DNS Server PS Module

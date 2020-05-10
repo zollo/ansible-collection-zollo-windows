@@ -1,12 +1,5 @@
 ---
 - hosts: testdns_winrm
-  vars_prompt:
-  - name: ansible_user
-    prompt: "What is your AD username?"
-    private: true
-  - name: ansible_password
-    prompt: "What is your AD password?"
-    private: true
   tasks:
   - name: Ensure primary DNS zone is present
     win_dns_zone:
