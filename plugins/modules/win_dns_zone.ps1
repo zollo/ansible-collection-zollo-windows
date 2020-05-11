@@ -96,17 +96,9 @@ Try {
 }
 
 if ($state -eq "present") {
-
-    # if(-not $current_zone) {
-    #     if ($replication -eq 'none') { $parms.ZoneFile = $parms.ZoneFile = "$name.dns" }
-    #     if ($replication -ne 'none') { $parms.ReplicationScope = $replication }
-    # } else {
-    #     if ($replication) { $parms.ReplicationScope = $replication }
-    # }
     if (-not $replication) { $parms.ReplicationScope = $current_zone.ReplicationScope }
     elseif ($replication -eq 'none') { $parms.ZoneFile = "$name.dns" }
     else  { $parms.ReplicationScope = $replication }
-
     if ($dynamic_update) { $parms.DynamicUpdate = $dynamic_update }
     if ($dns_servers) { $parms.MasterServers = $dns_servers }
     if ($forwarder_timeout -and ($forwarder_timeout -in 0..15)) { $parms.ForwarderTimeout = $forwarder_timeout }
@@ -136,6 +128,7 @@ if ($state -eq "present") {
             } else {
                 # update zone
                 if (-not $current_zone_type_match) {
+                    $parms.Remove('ReplicationScope')
                     Try { ConvertTo-DnsServerSecondaryZone @parms -Force -WhatIf:$check_mode } 
                     Catch { $module.FailJson("Failed to convert DNS zone $($name): $($_.Exception.Message)", $_) }
                 }
@@ -151,7 +144,11 @@ if ($state -eq "present") {
             } else {
                 # update zone
                 if (-not $current_zone_type_match) { $module.FailJson("Failed to convert DNS zone $($name) to $type, unsupported conversion") }
-                Try { Set-DnsServerStubZone @parms -WhatIf:$check_mode }
+                Try {
+                    if ($parms.ReplicationScope) { Set-DnsServerStubZone -Name $name -ReplicationScope $parms.ReplicationScope -WhatIf:$check_mode }
+                    if ($forwarder_timeout) { Set-DnsServerStubZone -Name $name -ForwarderTimeout $forwarder_timeout -WhatIf:$check_mode }
+                    if ($dns_servers) { Set-DnsServerStubZone -Name $name -MasterServers $dns_servers -WhatIf:$check_mode }
+                }
                 Catch { $module.FailJson("Failed to set properties on the zone $($name): $($_.Exception.Message)", $_) }
             }
         }
@@ -164,9 +161,9 @@ if ($state -eq "present") {
                 # update zone
                 if (-not $current_zone_type_match) { $module.FailJson("Failed to convert DNS zone $($name) to $type, unsupported conversion") }
                 Try {
+                    if ($parms.ReplicationScope) { Set-DnsServerConditionalForwarderZone -Name $name -ReplicationScope $parms.ReplicationScope -WhatIf:$check_mode }
                     if ($forwarder_timeout) { Set-DnsServerConditionalForwarderZone -Name $name -ForwarderTimeout $forwarder_timeout -WhatIf:$check_mode }
                     if ($dns_servers) { Set-DnsServerConditionalForwarderZone -Name $name -MasterServers $dns_servers -WhatIf:$check_mode }
-                    if ($replication) { Set-DnsServerConditionalForwarderZone -Name $name -ReplicationScope $replication -WhatIf:$check_mode }
                 }
                 Catch { $module.FailJson("Failed to set properties on the zone $($name): $($_.Exception.Message)", $_) }
             }
@@ -201,9 +198,6 @@ Try {
         $module.Diff.after = Get-DnsZoneObject -Object $new_zone
         if($current_zone) { $module.Diff.before = Get-DnsZoneObject -Object $current_zone }
     }
-
-
-
 } Catch { 
     $module.FailJson("Failed to lookup new zone $($name): $($_.Exception.Message)", $_) 
 }
