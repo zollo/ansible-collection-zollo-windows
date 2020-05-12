@@ -9,9 +9,9 @@
 $spec = @{
     options = @{
         name = @{ type = "str"; required = $true }
-        type = @{ type = "str"; choices = "primary", "secondary", "forwarder", "stub"; default = "primary" }
+        type = @{ type = "str"; choices = "primary", "secondary", "forwarder", "stub"; }
         replication = @{ type = "str"; choices = "forest", "domain", "legacy", "none" }
-        dynamic_update = @{ type = "str"; choices = "secure", "none", "nonsecureandsecure"; }
+        dynamic_update = @{ type = "str"; choices = "secure", "none", "nonsecureandsecure" }
         state = @{ type = "str"; choices = "absent", "present"; default = "present" }
         forwarder_timeout = @{ type = "int" }
         dns_servers = @{ type = "list" }
@@ -30,14 +30,10 @@ $state = $module.Params.state
 $dns_servers = $module.Params.dns_servers
 $forwarder_timeout = $module.Params.forwarder_timeout
 
-$parms = @{
-    name = $name
-}
+$parms = @{ name = $name }
 
 Function Get-DnsZoneObject {
-    Param(
-        [PSObject]$Object
-    )
+    Param([PSObject]$Object)
     $parms = @{
         name     = $Object.ZoneName.toLower()
         type     = $Object.ZoneType.toLower()
@@ -60,10 +56,7 @@ Function Get-DnsZoneObject {
 }
 
 Function Compare-DnsZone {
-    Param(
-        [PSObject]$Original,
-        [PSObject]$Updated
-    )
+    Param([PSObject]$Original,[PSObject]$Updated)
 
     if($Original -eq $false) { return $false }
     $props = @('ZoneType','DynamicUpdate','IsDsIntegrated','MasterServers','ForwarderTimeout','ReplicationScope')
@@ -72,39 +65,34 @@ Function Compare-DnsZone {
     return $false
 }
 
-Function Compare-IpList {
-    Param(
-        [PSObject]$Current,
-        [PSObject]$Desired
-    )
-
-    # ensure that all of the desired IP's are in the current list
-    $Desired | ForEach-Object { if ($_ -notin $Current) { return $false } }
-    return $true
-}
-
 # attempt import of module
 Try { Import-Module DnsServer }
 Catch { $module.FailJson("The DnsServer module failed to load properly: $($_.Exception.Message)", $_) }
 
-# determine current zone state
 Try {
+    # determine current zone state, check for fast fails
     $current_zone = Get-DnsServerZone -name $name
+    if (-not $type) { $type = $current_zone.ZoneType.toLower() }
     if ($current_zone.ZoneType -like $type) { $current_zone_type_match = $true }
-} Catch {
-    $current_zone = $false
-}
+    if ($current_zone.ReplicationScope -like 'none' -and $replication -in @('legacy','forest','domain')) { $module.FailJson("Converting file backed DNS zone to Active Directory integrated zone is unsupported") }
+    if ($current_zone.ReplicationScope -in @('legacy','forest','domain') -and $replication -like 'none') { $module.FailJson("Converting Active Directory integrated zone to file backed DNS zone is unsupported") }
+    if ($current_zone.IsDsIntegrated -eq $false -and $parms.DynamicUpdate -eq 'secure') { $module.FailJson("The secure dynamic update option is only available for Active Directory integrated zones") }
+} Catch { $current_zone = $false }
 
 if ($state -eq "present") {
-    if (-not $replication) { $parms.ReplicationScope = $current_zone.ReplicationScope }
-    elseif ($replication -eq 'none') { $parms.ZoneFile = "$name.dns" }
+    # parse replication/zonefile
+    if (-not $replication -and $current_zone) { $parms.ReplicationScope = $current_zone.ReplicationScope }
+    elseif ($replication -eq 'none' -or -not $replication) { $parms.ZoneFile = "$name.dns" }
     else  { $parms.ReplicationScope = $replication }
+    # parse params
     if ($dynamic_update) { $parms.DynamicUpdate = $dynamic_update }
     if ($dns_servers) { $parms.MasterServers = $dns_servers }
     if ($forwarder_timeout -and ($forwarder_timeout -in 0..15)) { $parms.ForwarderTimeout = $forwarder_timeout }
-    $module.Result.debug = $parms
+    if ($type -ne 'forwarder') { $parms.Remove('ForwarderTimeout') }
+
     switch ($type) {
         "primary" {
+            $parms.Remove('MasterServers')
             if (-not $current_zone) {
                 # create zone
                 Try { Add-DnsServerPrimaryZone @parms -WhatIf:$check_mode }
@@ -112,15 +100,24 @@ if ($state -eq "present") {
             } else {
                 # update zone
                 if (-not $current_zone_type_match) {
-                    Try { ConvertTo-DnsServerPrimaryZone @parms -Force -WhatIf:$check_mode } 
+                    Try {
+                        if ($current_zone.ReplicationScope) { $parms.ReplicationScope = $current_zone.ReplicationScope } else { $parms.Remove('ReplicationScope') }
+                        if ($current_zone.ZoneFile) { $parms.ZoneFile = $current_zone.ZoneFile } else { $parms.Remove('ReplicationScope') }
+                        if ($current_zone.IsShutdown) { $module.FailJson("Failed to convert DNS zone $($name): this zone is shutdown and cannot be modified") }
+                        ConvertTo-DnsServerPrimaryZone @parms -Force -WhatIf:$check_mode
+                    }
                     Catch { $module.FailJson("Failed to convert DNS zone $($name): $($_.Exception.Message)", $_) }
                 }
-                
-                Try { Set-DnsServerPrimaryZone @parms -WhatIf:$check_mode } 
+                Try {
+                    if (-not $parms.ZoneFile) { Set-DnsServerPrimaryZone -Name $name -ReplicationScope $parms.ReplicationScope -WhatIf:$check_mode }
+                    if ($dynamic_update) { Set-DnsServerPrimaryZone -Name $name -DynamicUpdate $parms.DynamicUpdate -WhatIf:$check_mode }
+                }
                 Catch { $module.FailJson("Failed to set properties on the zone $($name): $($_.Exception.Message)", $_) }
             }
         }
         "secondary" {
+            $parms.Remove('ReplicationScope')
+            $parms.Remove('DynamicUpdate')
             if (-not $current_zone) {
                 # create zone
                 Try { Add-DnsServerSecondaryZone @parms -WhatIf:$check_mode }
@@ -128,11 +125,13 @@ if ($state -eq "present") {
             } else {
                 # update zone
                 if (-not $current_zone_type_match) {
-                    $parms.Remove('ReplicationScope')
+                    $parms.MasterServers = $current_zone.MasterServers
+                    $parms.ZoneFile = $current_zone.ZoneFile
+                    if ($current_zone.IsShutdown) { $module.FailJson("Failed to convert DNS zone $($name): this zone is shutdown and cannot be modified") }
                     Try { ConvertTo-DnsServerSecondaryZone @parms -Force -WhatIf:$check_mode } 
                     Catch { $module.FailJson("Failed to convert DNS zone $($name): $($_.Exception.Message)", $_) }
                 }
-                Try { Set-DnsServerSecondaryZone @parms -WhatIf:$check_mode } 
+                Try { if ($dns_servers) { Set-DnsServerSecondaryZone -Name $name -MasterServers $dns_servers -WhatIf:$check_mode } }
                 Catch { $module.FailJson("Failed to set properties on the zone $($name): $($_.Exception.Message)", $_) }
             }
         }
@@ -176,9 +175,7 @@ if ($state -eq "absent") {
         Try {
             Remove-DnsServerZone -Name $name -Force -WhatIf:$check_mode
             $module.Result.changed = $true
-        } Catch { 
-            $module.FailJson("Failed to remove DNS zone: $($_.Exception.Message)", $_) 
-        }
+        } Catch { $module.FailJson("Failed to remove DNS zone: $($_.Exception.Message)", $_) }
     }
     $module.ExitJson()
 }
@@ -186,20 +183,12 @@ if ($state -eq "absent") {
 # determine if a change was made
 Try {
     $new_zone = Get-DnsServerZone -Name $name
-    $module.Result.debug.zones_are_equal = (Compare-DnsZone -Original $current_zone -Updated $new_zone)
-    $module.Result.debug.zone_found = ($current_zone -ne $false)
-    if($current_zone -ne $false) {
-        $module.Result.debug.current_zone = Get-DnsZoneObject -Object $current_zone
-    }
-
     if(-not (Compare-DnsZone -Original $current_zone -Updated $new_zone)) {
         $module.Result.changed = $true
         $module.Result.zone = Get-DnsZoneObject -Object $new_zone
         $module.Diff.after = Get-DnsZoneObject -Object $new_zone
         if($current_zone) { $module.Diff.before = Get-DnsZoneObject -Object $current_zone }
     }
-} Catch { 
-    $module.FailJson("Failed to lookup new zone $($name): $($_.Exception.Message)", $_) 
-}
+} Catch { $module.FailJson("Failed to lookup new zone $($name): $($_.Exception.Message)", $_) }
 
 $module.ExitJson()

@@ -18,30 +18,40 @@ requirements:
   - This module requires Windows Server 2012 or Newer
 description:
   - Manage Windows Server DNS Zones
-  - Adds, Removes and Modifies DNS Zones, Forward, Stub & Reverse
+  - Adds, Removes and Modifies DNS Zones: Primary, Forward, 
+    Stub & Reverse
   - Task should be delegated to a Windows DNS Server
 options:
   name:
     description:
-      - Fully qualified DNS zone name
+      - Fully qualified name of the DNS zone.
     type: str
+    required: true
   type:
     description:
       - Specifies the type of DNS zone.
-      - Secondary DNS zones will attempt to perform a zone transfer
-        from a master server l(dns_servers) immediately after being 
-        added.
+      - When l(type=secondary), the DNS server will immediately attempt to
+        perform a zone transfer from the servers in this list. If this initial
+        transfer fails, then the zone will be left in an unworkable state. This
+        module does not verify the initial transfer.
     type: str
-    default: primary
     choices: [ primary, secondary, stub, forwarder ]
   dynamic_update:
     description:
-      - Specifies how a zone accepts dynamic updates.
+      - Specifies how a zone handles dynamic updates.
+      - Secure DNS updates are available only for Active
+        Directory-integrated zones.
+      - When not specified during new zone creation, Windows will
+        default this to l(none).
     type: str
     choices: [ secure, none, nonsecureandsecure ]
   state:
     description:
       - Specifies the desired state of the DNS zone.
+      - When l(state=present) the module will attempt to create the
+        specified DNS zone if it does not already exist.
+      - When l(state=absent), the module will remove the specified DNS
+        zone and all subsequent DNS records.
     type: str
     default: present
     choices: [ present, absent ]
@@ -54,17 +64,23 @@ options:
   replication:
     description:
       - Specifies the replication scope for the DNS zone.
-      - Setting l(replication=none) disables AD replication and creates 
-        a zone file with the name of the zone.
-      - This is the equivalent of checking l(store the zone in Active 
+      - l(replication=forest) will replicate the DNS zone
+        to all domain controllers in the Active Directory forest.
+      - l(replication=domain) will replicate the DNS zone
+        to all domain controllers in the Active Directory domain.
+      - l(replication=none) disables Active Directory integration and
+        creates a local file with the name of the zone.
+      - This is the equivalent of selecting l(store the zone in Active 
         Directory) in the GUI.
-      - Required when l(state=present)
     type: str
     choices: [ forest, domain, legacy, none ]
   dns_servers:
     description:
       - Specifies an list of IP addresses of the master servers of the zone.
-      - Required if l(type=secondary), l(type=forwarder) or l(type=stub), otherwise ignored.
+      - DNS queries for a forwarded zone are sent to master servers
+      - Required if l(type=secondary), l(type=forwarder) or l(type=stub),
+        otherwise ignored.
+      - At least one server is required.
     type: list
     alias: master_servers
 author:
@@ -128,6 +144,13 @@ EXAMPLES = r'''
     replication: none
     type: primary
 
+- name: Ensure primary DNS zone has nonsecureandsecure dynamic updates enabled
+  win_dns_zone:
+    name: basavaraju.euc.vmware.com
+    replication: none
+    dynamic_update: nonsecureandsecure
+    type: primary
+
 - name: Ensure DNS zone is absent
   win_dns_zone:
     name: marshallb.euc.vmware.com
@@ -151,14 +174,14 @@ zone:
   returned: When l(state=present)
   type: dict
   sample:
-    name:
-    type:
-    dynamic_update:
-    reverse_lookup:
+    name: 
+    type: 
+    dynamic_update: 
+    reverse_lookup: 
     forwarder_timeout: 
-    paused:
+    paused: 
     shutdown: 
-    zone_file:
-    replication:
-    dns_servers:
+    zone_file: 
+    replication: 
+    dns_servers: 
 '''
