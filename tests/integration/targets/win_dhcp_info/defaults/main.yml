@@ -1,0 +1,45 @@
+---
+dhcp_scope_testing:
+  - start: 172.16.98.1
+    end:  172.16.98.254
+    subnet: 255.255.255.0
+    id: 172.16.98.0
+  - start: 172.16.97.1
+    end:  172.16.97.254
+    subnet: 255.255.255.0
+    id: 172.16.97.0
+  - start: 172.16.96.1
+    end:  172.16.96.254
+    subnet: 255.255.255.0
+    id: 172.16.96.0
+dhcp_lease_testing:
+  - type: lease
+    ip: 172.16.98.100
+    mac: 0A-1B-2C-3D-4E-5A
+    dns_hostname: wpinner
+    scope_id: 172.16.98.0
+  - type: reservation
+    ip: 172.16.98.101
+    mac: 0A-1B-2C-3D-4E-5B
+    dns_hostname: marshallb
+    scope_id: 172.16.98.0
+  - type: reservation
+    ip: 172.16.98.102
+    mac: 0A-1B-2C-3D-4E-5C
+    dns_hostname: dgemzer
+    scope_id: 172.16.98.0
+  - type: lease
+    ip: 172.16.98.103
+    mac: 0A-1B-2C-3D-4E-5D
+    dns_hostname: basavaraju
+    scope_id: 172.16.98.0
+  - type: lease
+    ip: 172.16.98.104
+    mac: 0A-1B-2C-3D-4E-5E
+    dns_hostname: jamals
+    scope_id: 172.16.98.0
+  - type: lease
+    ip: 172.16.98.105
+    mac: 0A-1B-2C-3D-4E-5F
+    dns_hostname: virajp
+    scope_id: 172.16.98.0

@@ -1,0 +1,34 @@
+---
+- name: Get information on reservations (should return 2 items)
+  win_dhcp_info:
+    type: reservations
+  register: get_reservations
+  failed_when: (get_reservations.leases | length) != 2
+
+- name: Get information on leases (should return 6 items)
+  win_dhcp_info:
+    type: leases
+  register: get_leases
+  failed_when: (get_leases.leases | length) != 6
+
+- name: Get information on scopes (should return 3 items)
+  win_dhcp_info:
+    type: scope
+  register: get_scopes
+  failed_when: (get_leases.leases | length) != 6
+
+- name: Get information on single lease (should return 1 item)
+  win_dhcp_info:
+    type: lease
+    ip: 172.16.98.100
+  register: get_one_lease
+  failed_when: (get_one_lease.leases | length) != 1
+
+- block:
+  - debug:
+      msg: "{{ get_one_lease.leases[0].ip }}"
+    failed_when: get_one_lease.leases[0].ip != '172.16.98.100'
+
+  - debug:
+      msg: "{{ get_one_lease.leases[0].scope_id }}"
+    failed_when: get_one_lease.leases[0].scope_id != '172.16.98.0'
