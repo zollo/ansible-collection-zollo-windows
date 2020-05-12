@@ -18,7 +18,7 @@ requirements:
   - This module requires Windows Server 2012 or Newer
 description:
   - Manage Windows Server DNS Zones
-  - Adds, Removes and Modifies DNS Zones: Primary, Forward, Stub & Reverse
+  - Adds, Removes and Modifies DNS Zones - Primary, Forward, Stub & Reverse
   - Task should be delegated to a Windows DNS Server
 options:
   name:
@@ -171,14 +171,14 @@ zone:
   returned: When l(state=present)
   type: dict
   sample:
-    name: 
-    type: 
-    dynamic_update: 
-    reverse_lookup: 
-    forwarder_timeout: 
-    paused: 
-    shutdown: 
-    zone_file: 
-    replication: 
-    dns_servers: 
+    name:
+    type:
+    dynamic_update:
+    reverse_lookup:
+    forwarder_timeout:
+    paused:
+    shutdown:
+    zone_file:
+    replication:
+    dns_servers:
 '''
