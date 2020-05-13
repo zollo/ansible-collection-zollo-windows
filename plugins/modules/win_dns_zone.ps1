@@ -95,9 +95,6 @@ if ($state -eq "present") {
     # parse params
     if ($dynamic_update) { $parms.DynamicUpdate = $dynamic_update }
     if ($dns_servers) { $parms.MasterServers = $dns_servers }
-    if ($forwarder_timeout -and ($forwarder_timeout -in 0..15) -and $type -eq 'forwarder') { 
-        $parms.ForwarderTimeout = $forwarder_timeout 
-    }
     if ($type -in @('stub','forwarder','secondary') -and -not $current_zone -and -not $dns_servers) { 
         $module.FailJson("The dns_servers param is required when creating new stub, forwarder or secondary zones") 
     }
@@ -165,8 +162,13 @@ if ($state -eq "present") {
             }
         }
         "forwarder" {
-            # remove irrelevent params
             $parms.Remove('ZoneFile')
+            if ($forwarder_timeout -and ($forwarder_timeout -in 0..15)) { 
+                $parms.ForwarderTimeout = $forwarder_timeout 
+            }
+            if ($forwarder_timeout -and -not ($forwarder_timeout -in 0..15)) {
+                $module.Warn("The forwarder_timeout param must be an integer value between 0 and 15")
+            }
             if (-not $current_zone) {
                 # create zone
                 Try { Add-DnsServerConditionalForwarderZone @parms -WhatIf:$check_mode }
