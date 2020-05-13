@@ -20,15 +20,17 @@
     sysvol_path: C:\Windows\SYSVOL
   register: domain_install
 
+- name: Reboot
+  ansible.windows.win_reboot:
+
 - block:
   - name: Ensure loopback address is set to DNS
     ansible.windows.win_dns_client:
       adapter_names: '*'
       ipv4_addresses: 127.0.0.1
 
-  - name: Reboot if needed
+  - name: Reboot Again
     ansible.windows.win_reboot:
-    when: result.reboot_required
 
   - name: Run tests
     include_tasks: tests.yml
