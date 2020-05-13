@@ -57,8 +57,6 @@ options:
     type: boolean
     default: primary
     choices: [ primary, secondary, stub, forwarder ]
-author:
-- Joseph Zollo (@joezollo)
 '''
 
 EXAMPLES = r'''

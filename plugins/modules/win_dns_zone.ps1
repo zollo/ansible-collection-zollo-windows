@@ -9,7 +9,7 @@
 $spec = @{
     options = @{
         name = @{ type = "str"; required = $true }
-        type = @{ type = "str"; choices = "primary", "secondary", "forwarder", "stub"; }
+        type = @{ type = "str"; choices = "primary", "secondary", "forwarder", "stub" }
         replication = @{ type = "str"; choices = "forest", "domain", "legacy", "none" }
         dynamic_update = @{ type = "str"; choices = "secure", "none", "nonsecureandsecure" }
         state = @{ type = "str"; choices = "absent", "present"; default = "present" }
