@@ -45,7 +45,6 @@ options:
       - If specified, will lookup a info on a single lease/reservation
       - Can be used to identify an existing lease/reservation, instead of l(mac).
     type: str
-    required: no
   mac:
     description:
       - Specifies the client identifier to be set on the IPv4 address.
@@ -54,7 +53,6 @@ options:
       - Windows clients use the MAC address as the client ID, Linux and other 
         operating systems can use other types of identifiers.
     type: str
-    required: no
 '''
 
 EXAMPLES = r'''
