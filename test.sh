@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 COLLECTION_NAMESPACE=joezollo
 COLLECTION_NAME=windows_server
-COLLECTION_PATH=/etc/ansible/collections/ansible_collections/$COLLECTION_NAMESPACE/$COLLECTION_NAME
-MODULE_NAME=win_dns_zone
+COLLECTION_BASE_PATH=/etc/ansible/collections/ansible_collections/
+COLLECTION_PATH=$COLLECTION_BASE_PATH/$COLLECTION_NAMESPACE/$COLLECTION_NAME
+MODULE_NAME=$1
+TEST_TYPE=module
 mkdir -p $COLLECTION_PATH
 cp -r * $COLLECTION_PATH
 cd $COLLECTION_PATH
-
-ansible-test sanity --color -v \
-    --docker --test validate-modules --base-branch "master" plugins/modules/win_dns_zone.ps1 plugins/modules/win_dns_zone.py
+# run validate-modules
+if [ $TEST_TYPE == 'module' ]
+then
+    ansible-test sanity --color -v \
+        --docker --test validate-modules --base-branch "master" plugins/modules/${MODULE_NAME}.ps1 plugins/modules/${MODULE_NAME}.py
+fi
 
 # ansible-test sanity --docker default
 # ansible-test sanity --color -v \
