@@ -31,14 +31,14 @@ options:
       - Specifies the type of DNS zone.
       - When l(type=secondary), the DNS server will immediately attempt to
         perform a zone transfer from the servers in this list. If this initial
-        transfer fails, then the zone will be left in an unworkable state. 
+        transfer fails, then the zone will be left in an unworkable state.
         This module does not verify the initial transfer.
     type: str
     choices: [ primary, secondary, stub, forwarder ]
   dynamic_update:
     description:
       - Specifies how a zone handles dynamic updates.
-      - Secure DNS updates are available only for Active Directory-integrated 
+      - Secure DNS updates are available only for Active Directory-integrated
         zones.
       - When not specified during new zone creation, Windows will default this
         to l(none).
@@ -56,17 +56,19 @@ options:
     choices: [ present, absent ]
   forwarder_timeout:
     description:
-      - Specifies a length of time, in seconds, that a DNS server
-        waits for a master server to resolve a query.
-      - Accepts values between 0 and 15.
+      - Specifies a length of time, in seconds, that a DNS server waits for a
+        master server to resolve a query.
+      - Accepts integer values between 0 and 15.
+      - If the provided value is not valid, it will be omitted and a warning
+        will be issued.
     type: int
   replication:
     description:
       - Specifies the replication scope for the DNS zone.
-      - l(replication=forest) will replicate the DNS zone
-        to all domain controllers in the Active Directory forest.
-      - l(replication=domain) will replicate the DNS zone
-        to all domain controllers in the Active Directory domain.
+      - l(replication=forest) will replicate the DNS zone to all domain
+        controllers in the Active Directory forest.
+      - l(replication=domain) will replicate the DNS zone to all domain
+        controllers in the Active Directory domain.
       - l(replication=none) disables Active Directory integration and
         creates a local file with the name of the zone.
       - This is the equivalent of selecting l(store the zone in Active
@@ -76,7 +78,7 @@ options:
   dns_servers:
     description:
       - Specifies an list of IP addresses of the master servers of the zone.
-      - DNS queries for a forwarded zone are sent to master servers
+      - DNS queries for a forwarded zone are sent to master servers.
       - Required if l(type=secondary), l(type=forwarder) or l(type=stub),
         otherwise ignored.
       - At least one server is required.

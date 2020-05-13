@@ -76,14 +76,14 @@ Try {
     if (-not $type) { $type = $current_zone.ZoneType.toLower() }
     if ($current_zone.ZoneType -like $type) { $current_zone_type_match = $true }
     # check for fast fails
-    if ($current_zone.ReplicationScope -like 'none' -and $replication -in @('legacy','forest','domain')) { 
+    if ($current_zone.ReplicationScope -like 'none' -and $replication -in @('legacy','forest','domain')) {
         $module.FailJson("Converting a file backed DNS zone to Active Directory integrated zone is unsupported") 
     }
-    if ($current_zone.ReplicationScope -in @('legacy','forest','domain') -and $replication -like 'none') { 
-        $module.FailJson("Converting Active Directory integrated zone to a file backed DNS zone is unsupported") 
+    if ($current_zone.ReplicationScope -in @('legacy','forest','domain') -and $replication -like 'none') {
+        $module.FailJson("Converting Active Directory integrated zone to a file backed DNS zone is unsupported")
     }
-    if ($current_zone.IsDsIntegrated -eq $false -and $parms.DynamicUpdate -eq 'secure') { 
-        $module.FailJson("The secure dynamic update option is only available for Active Directory integrated zones") 
+    if ($current_zone.IsDsIntegrated -eq $false -and $parms.DynamicUpdate -eq 'secure') {
+        $module.FailJson("The secure dynamic update option is only available for Active Directory integrated zones")
     }
 } Catch { $current_zone = $false }
 
@@ -95,8 +95,8 @@ if ($state -eq "present") {
     # parse params
     if ($dynamic_update) { $parms.DynamicUpdate = $dynamic_update }
     if ($dns_servers) { $parms.MasterServers = $dns_servers }
-    if ($type -in @('stub','forwarder','secondary') -and -not $current_zone -and -not $dns_servers) { 
-        $module.FailJson("The dns_servers param is required when creating new stub, forwarder or secondary zones") 
+    if ($type -in @('stub','forwarder','secondary') -and -not $current_zone -and -not $dns_servers) {
+        $module.FailJson("The dns_servers param is required when creating new stub, forwarder or secondary zones")
     }
     switch ($type) {
         "primary" {
@@ -163,8 +163,8 @@ if ($state -eq "present") {
         }
         "forwarder" {
             $parms.Remove('ZoneFile')
-            if ($forwarder_timeout -and ($forwarder_timeout -in 0..15)) { 
-                $parms.ForwarderTimeout = $forwarder_timeout 
+            if ($forwarder_timeout -and ($forwarder_timeout -in 0..15)) {
+                $parms.ForwarderTimeout = $forwarder_timeout
             }
             if ($forwarder_timeout -and -not ($forwarder_timeout -in 0..15)) {
                 $module.Warn("The forwarder_timeout param must be an integer value between 0 and 15")
