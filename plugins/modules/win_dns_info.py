@@ -23,7 +23,13 @@ options:
   type:
     description:
       - Specifies the type of DNS object to retreive
-      - Specifying l(all)
+      - Specifying l(all) will retrieve the zone object and all matched records
+        based on l(record_type) and l(record_name)
+      - Specifying l(zone) will retrieve just the zone object
+      - Specifying l(record) will retreive just the matched records based on
+        l(record_type) and l(record_name)
+    type: str
+    default: all
     choices: [ zone, record, all ]
   zone_name:
     description:
@@ -34,7 +40,7 @@ options:
       - Specifies the DNS zone type
     type: str
     default: primary
-    choices: [ primary, secondary, stub, forwarder, reverse ]
+    choices: [ primary, secondary, stub, forwarder ]
   record_type:
     description:
       - Specifies the DNS record type
