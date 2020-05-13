@@ -61,8 +61,7 @@ Function Compare-DnsZone {
     if($Original -eq $false) { return $false }
     $props = @('ZoneType','DynamicUpdate','IsDsIntegrated','MasterServers','ForwarderTimeout','ReplicationScope')
     $x = Compare-Object $Original $Updated -Property $props
-    if($x.Count -eq 0) { return $true }
-    return $false
+    if($x.Count -eq 0) { return $true } else { return $false }
 }
 
 # attempt import of module
@@ -129,6 +128,8 @@ if ($state -eq "present") {
             $parms.Remove('ReplicationScope')
             $parms.Remove('DynamicUpdate')
             if (-not $current_zone) {
+                # enforce param
+                $parms.ZoneFile = "$name.dns"
                 # create zone
                 Try { Add-DnsServerSecondaryZone @parms -WhatIf:$check_mode }
                 Catch { $module.FailJson("Failed to add $type zone $($name): $($_.Exception.Message)", $_) }
@@ -188,7 +189,7 @@ if ($state -eq "present") {
 }
 
 if ($state -eq "absent") {
-    if ($current_zone) {
+    if ($current_zone -and -not $check_mode) {
         Try {
             Remove-DnsServerZone -Name $name -Force -WhatIf:$check_mode
             $module.Result.changed = $true
