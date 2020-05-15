@@ -4,3 +4,29 @@ win_dns_info_primary_zones:
     replication: forest
   - name: pao.euc.vmware.test
     replication: forest
+  - name: blr.euc.vmware.test
+    replication: domain
+
+win_dns_info_a_records:
+  - name: tradefloor
+    ipv4: 10.1.1.50
+    zone: atl.euc.vmware.test
+  - name: tradefloor
+    ipv4: 10.1.1.50
+    zone: atl.euc.vmware.test
+
+win_dns_info_cname_records:
+  - name: tradefloor
+    ipv4: 10.1.1.50
+    zone: atl.euc.vmware.test
+  - name: tradefloor
+    ipv4: 10.1.1.50
+    zone: atl.euc.vmware.test
+
+win_dns_info_mx_records:
+  - name: tradefloor
+    ipv4: 10.1.1.50
+    zone: atl.euc.vmware.test
+  - name: tradefloor
+    ipv4: 10.1.1.50
+    zone: atl.euc.vmware.test

@@ -25,16 +25,25 @@
   - name: Reboot Again
     ansible.windows.win_reboot:
 
-  - name: Seed testing data - zones
+  - name: Seed testing data - primary zones
     win_shell: |
-      Add-DnsServerPrimaryZone -Name "{{  }}" -ReplicationScope "Forest"
-      Add-DnsServerPrimaryZone -Name "pao.euc.vmware.test" -ReplicationScope "Domain"
-      Add-DnsServerPrimaryZone -Name "blr.euc.vmware.test" -ZoneFile "blr.euc.vmware.test.dns"
-    loop: 
+      Add-DnsServerPrimaryZone -Name "{{ item.name }}" -ReplicationScope "{{ item.replication }}"
+    loop: "{{ win_dns_info_primary_zones }}"
 
-  - name: Seed testing data - records
+  - name: Seed testing data - A records
     win_shell: |
-      Add-DnsServerResourceRecord -ZoneName "atl.euc.vmware.test" -A -Name ""
+      Add-DnsServerResourceRecord -A -ZoneName "{{ item.zone }}" -Name "{{ item.name }}" -IPv4Address "{{ item.ipv4 }}"
+    loop: "{{ win_dns_info_a_records }}"    
+
+  - name: Seed testing data - MX records
+    win_shell: |
+      Add-DnsServerResourceRecord -Name "{{ item.name }}" -MX -ZoneName "{{ item.zone }}" -MailExchange "{{ item.data }}" -Preference {{ item.pref }}
+    loop: "{{ win_dns_info_mx_records }}"
+
+  - name: Seed testing data - CNAME records
+    win_shell: |
+      Add-DnsServerResourceRecord -CName -Name "{{ item.name }}" -HostNameAlias "{{ item.alias }}" -ZoneName "{{ item.zone }}"
+    loop: "{{ win_dns_info_cname_records }}"
 
   - name: Run tests
     include_tasks: tests.yml

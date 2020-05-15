@@ -92,6 +92,7 @@ Try {
 
 if ($state -eq "present") {
     # parse replication/zonefile
+    # if (($replication -eq 'none') -and ($current_zone)) {  }
     if (-not $replication -and $current_zone) {
         $parms.ReplicationScope = $current_zone.ReplicationScope
     } elseif ((($replication -eq 'none') -or (-not $replication)) -and (-not $current_zone)) {
@@ -99,7 +100,7 @@ if ($state -eq "present") {
     } else {
         $parms.ReplicationScope = $replication
     }
-    # parse params
+    # parse param
     if ($dynamic_update) { $parms.DynamicUpdate = $dynamic_update }
     if ($dns_servers) { $parms.MasterServers = $dns_servers }
     if ($type -in @('stub','forwarder','secondary') -and -not $current_zone -and -not $dns_servers) {
