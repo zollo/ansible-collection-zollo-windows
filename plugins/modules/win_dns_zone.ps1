@@ -97,6 +97,8 @@ if ($state -eq "present") {
         $parms.ReplicationScope = $current_zone.ReplicationScope
     } elseif ((($replication -eq 'none') -or (-not $replication)) -and (-not $current_zone)) {
         $parms.ZoneFile = "$name.dns"
+    } elseif (($replication -eq 'none') -and ($current_zone)) {
+        $parms.ZoneFile = "$name.dns"
     } else {
         $parms.ReplicationScope = $replication
     }
