@@ -13,31 +13,63 @@ $spec = @{
         ip = @{ type = "str" }
         mac = @{ type = "str" }
     }
-    supports_check_mode = $false
 }
 
 $module = [Ansible.Basic.AnsibleModule]::Create($args, $spec)
+$parms = @{}
 
 $type = $module.Params.type
 $ip = $module.Params.ip
 $scope_id = $module.Params.scope_id
 $mac = $module.Params.mac
 
-$module.Result.scopes = @()
-$module.Result.leases = @()
+Function Get-DhcpScopeLeasesObject {
+    Param(
+        [String]$LeaseName,
+        [String]$RecordName
+    )
 
-Function Get-DhcpScopeReturnObject {
+    $parms = @{ZoneName = $ZoneName }
+
+    if ($RRType) { $parms.RRType = $RRType }
+    if ($RecordName) { $parms.Name = $RecordName }
+    Get-DhcpServerv4Lease @parms
+    $leases = Get-DnsServerResourceRecord @parms
+
+    if ($FilterAd) { 
+        $records = $records | Where-Object {
+            ($_.HostName -notlike '_kerberos*') -and 
+            ($_.HostName -notlike '_ldap*') -and 
+            ($_.HostName -notlike '_kpasswd*') -and 
+            ($_.HostName -notlike '_gc*') -and 
+            ($_.HostName -notlike '*._msdcs*') -and
+            ($_.HostName -notlike 'gc._msdcs') -and
+            ($_.HostName -notlike '*_ldap._tcp*') -and
+            ($_.HostName -notlike '*forestdnszones*') -and
+            ($_.HostName -notlike '*domaindnszones*')
+        }
+    }
+
+    $lease_list = @()
+    foreach ($item in $records) {
+        $record_list += Get-DnsRecordObject -ZoneName $ZoneName -Object $item
+    }
+
+    return $record_list
+}
+
+Function Get-DhcpScopeObject {
     Param(
         $Object
     )
 
     return @{
-        name            = $Object.name
-        scope_id        = $Object.ScopeId.IPAddressToString
-        subnet_mask     = $Object.SubnetMask.IPAddressToString
-        address_state   = $Object.State
-        start_range     = $Object.StartRange.IPAddressToString
-        end_range       = $Object.EndRange.IPAddressToString
+        name = $Object.name
+        scope_id = $Object.ScopeId.IPAddressToString
+        subnet_mask = $Object.SubnetMask.IPAddressToString
+        address_state = $Object.State
+        start_range = $Object.StartRange.IPAddressToString
+        end_range = $Object.EndRange.IPAddressToString
         lease_duration = @{
             days = $Object.LeaseDuration.Days
             hours = $Object.LeaseDuration.Hours
@@ -45,18 +77,18 @@ Function Get-DhcpScopeReturnObject {
     }
 }
 
-Function Get-DhcpLeaseReturnObject {
+Function Get-DhcpLeaseObject {
     Param(
         $Object
     )
 
     return @{
-        client_id       = $Object.ClientId
-        address_state   = $Object.AddressState
-        ip_address      = $Object.IPAddress.IPAddressToString
-        scope_id        = $Object.ScopeId.IPAddressToString
-        name            = $Object.Name
-        description     = $Object.Description
+        client_id = $Object.ClientId
+        address_state = $Object.AddressState
+        ip_address = $Object.IPAddress.IPAddressToString
+        scope_id = $Object.ScopeId.IPAddressToString
+        name = $Object.Name
+        description = $Object.Description
     }
 }
 
@@ -98,18 +130,11 @@ Function Get-AllDhcpLeaseObjects {
 
 Function Convert-IPAddressToMac {
     param(
-        [Parameter(Mandatory=$true)]$IPAddress
+        [String]$IPAddress
     )
 
-    Try {
-        $lease = Get-AllDhcpLeaseObjects -Type "all" | Where-Object {
-            $_.IPAddress -like $IPAddress
-        }
-    }
-    Catch {
-        return $false
-    }
-
+    Try { $lease = Get-AllDhcpLeaseObjects -Type "all" | Where-Object { $_.IPAddress -like $IPAddress } }
+    Catch { return $false }
     return $lease.ClientId
 }
 
@@ -120,93 +145,96 @@ Function Convert-MacAddress {
 
     # Evaluate Length
     if ($mac.Length -eq 12) {
-        # Insert Dashes
-        $mac = $mac.Insert(2, "-").Insert(5, "-").Insert(8, "-").Insert(11, "-").Insert(14, "-")
-        return $mac
-    }
-    elseif ($mac.Length -eq 17) {
-        # Remove Colons
-        if($mac -like "*:*:*:*:*:*") {
-            return ($mac -replace ':')
-        }
-        # Remove Dashes
-        if ($mac -like "*-*-*-*-*-*") {
-            return ($mac -replace '-')
-        }
-    }
-    else {
+        return $mac.Insert(2, "-").Insert(5, "-").Insert(8, "-").Insert(11, "-").Insert(14, "-")
+    } elseif ($mac.Length -eq 17) {
+        if($mac -like "*:*:*:*:*:*") { return ($mac -replace ':') }
+        if ($mac -like "*-*-*-*-*-*") { return ($mac -replace '-') }
+    } else {
         return $false
     }
 }
 
+# attempt import of module
+Try { Import-Module DhcpServer }
+Catch { $module.FailJson("The DhcpServer module failed to load properly: $($_.Exception.Message)", $_) }
+
+# determine data struct
+if ($type -in @('lease','reservation')) { $module.Result.leases = @() } 
+else { $module.Result.scopes = @() }
+$scopes_tmp = @()
+
+# convert ip to mac address/client id if needed
+if ($ip) { $mac = Convert-IPAddressToMac -IPAddress $ip }
+
 Try {
-    # Import DHCP Server PS Module
-    Import-Module DhcpServer
+    # determine current scopes
+    if ($scope_id) { $scopes_tmp += Get-DhcpServerv4Scope -ScopeId $scope_id }
+    else { $scopes_tmp = Get-DhcpServerv4Scope }
 }
 Catch {
-    # Couldn't load the DhcpServer Module
-    $module.FailJson("The DhcpServer module failed to load properly: $($_.Exception.Message)", $_)
+    $module.FailJson("Unable to retrive scope(s) from DHCP server: $($_.Exception.Message)", $_)
 }
 
-# Convert IP to MAC Address/Client ID if Needed
-if($ip) {
-    $mac = Convert-IPAddressToMac -IPAddress $ip
-}
-
-# Retreive Scope
-if($scope_id) {
-    Try {
-        $current_scope = Get-DhcpServerv4Scope -ScopeId $scope_id
-    }
-    Catch {
-        $module.FailJson("Unable to retrive scope from DHCP server", $_)
-    }
-}
-
-# Retreive All Scopes
-if(-not $scope_id) {
-    $current_scope = Get-DhcpServerv4Scope
-}
-
-# Retreive Lease
+# determine leases
 if ($mac) {
-    Try {
-        $current_lease = Get-AllDhcpLeaseObjects -Type $type -ClientId (Convert-MacAddress -mac $mac)
-    }
-    Catch {
-        $module.FailJson("Unable to retrive lease/reservation from DHCP server", $_)
-    }
+    Try { $current_lease = Get-AllDhcpLeaseObjects -Type $type -ClientId (Convert-MacAddress -mac $mac) }
+    Catch { $module.FailJson("Unable to retrive lease/reservation from DHCP server", $_) }
 }
 
-# Type: Scope/All
-if (($type -eq "scope") -or ($type -eq "all")) {
-    Try {
-        $current_scope | ForEach-Object {
-            $module.Result.scopes += Get-DhcpScopeReturnObject -Object $_
+
+
+
+
+
+Try {
+    foreach ($scope in $scopes_tmp) {
+
+        $scope_parsed = Get-DhcpScopeObject -Object $scope
+
+        if ($type -eq "scope") { $module.Result.scopes += $scope_parsed }
+
+        $lease_tmp = Get-DnsScopeLeasesObject -RecordName $record_name -ZoneName $zone.ZoneName -FilterAd $filter_ad -RRType $record_type
+
+        if ($type -eq "record") { $module.Result.records += $dns_tmp }
+
+        if ($type -eq "all") {
+            $zone_parsed.dns_records = $dns_tmp
+            $module.Result.zones += $zone_parsed
         }
     }
-    Catch {
-        $module.FailJson("Unable to retrive scope(s) from DHCP server", $_)
-    }
+}
+Catch {
+    $module.FailJson("Unable to retreive lease(s) from DHCP server: $($_.Exception.Message)", $_)
 }
 
-# Type: Lease/Reservation/All
+
+
+
+
+
+
+
+
+
+
+
+# type: scope/all
+if (($type -eq "scope") -or ($type -eq "all")) {
+    Try { $current_scope | ForEach-Object { $module.Result.scopes += Get-DhcpScopeReturnObject -Object $_ } }
+    Catch { $module.FailJson("Unable to retrive scope(s) from DHCP server", $_) }
+}
+
+# type: lease/reservation/all
 if (($type -ne "scope") -or ($type -eq "all")) {
     Try {
         if ((-not $mac) -and (-not $ip)) {
-            # No MAC/IP is specified, return all objects
-            (Get-AllDhcpLeaseObjects -Type $type -Scope $current_scope) | ForEach-Object {
-                $module.Result.leases += Get-DhcpLeaseReturnObject -Object $
+            (Get-AllDhcpLeaseObjects -Type $type -Scope $current_scope) | ForEach-Object { 
+                $module.Result.leases += Get-DhcpLeaseReturnObject -Object $_ 
             }
+        } else { 
+            $module.Result.leases += (Get-DhcpLeaseReturnObject -Object $current_lease -Scope $current_scope) 
         }
-        else {
-            # MAC/IP is specified, return a single object
-            $module.Result.leases += Get-DhcpLeaseReturnObject -Object $current_lease -Scope $current_scope
-        }
-    }
-    Catch {
-        $module.FailJson("Unable to retrive leases/reservations from DHCP server", $_)
-    }
+    } Catch { $module.FailJson("Unable to retrive leases/reservations from DHCP server", $_) }
 }
 
 $module.ExitJson()

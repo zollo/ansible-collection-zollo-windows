@@ -97,8 +97,8 @@ EXAMPLES = r'''
 
 RETURN = r'''
 leases:
-  description: DHCP Lease(s) and Reservations
-  returned: 
+  description: DHCP Lease(s) and Reservation(s)
+  returned: When l(type=lease), l(type=reservation) or l(type=all)
   type: list
   sample:
   - client_id: 00-0A-1B-2C-3D-4F
@@ -116,7 +116,7 @@ leases:
 
 scopes:
   description: DHCP Scope(s)
-  returned: 
+  returned: When l(type=scope) or l(type=all)
   type: list
   sample:
   - name: 10.0.1.0-vlan1

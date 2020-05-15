@@ -10,16 +10,15 @@ $spec = @{
     options = @{
         type = @{ type = "str"; choices = "zone", "record", "all"; default = "all" }
         zone_name = @{ type = "str"; }
-        zone_type = @{ type = "str"; choices = "primary","secondary","forwarder","stub"; }
+        zone_type = @{ type = "str"; choices = "primary", "secondary", "forwarder", "stub"; }
         record_name = @{ type = "str"; }
-        record_type = @{ type = "str"; choices = "A","AAAA","MX","CNAME","PTR","NS","TXT"; }
-        filter_ad = @{ type = "bool"; default = $false }
+        record_type = @{ type = "str"; choices = "A", "AAAA", "MX", "CNAME", "PTR", "NS", "TXT"; }
+        filter_ad = @{ type = "bool"; default = $true }
     }
-    supports_check_mode = $true
 }
 
 $module = [Ansible.Basic.AnsibleModule]::Create($args, $spec)
-$check_mode = $module.CheckMode
+$parms = @{}
 
 $type = $module.Params.type
 $zone_name = $module.Params.zone_name
@@ -28,49 +27,35 @@ $record_name = $module.Params.record_name
 $record_type = $module.Params.record_type
 $filter_ad = $module.Params.filter_ad
 
-$module.Result.zones = @()
-$module.Result.records = @()
-$parms = @{}
-
-Function Get-DnsRecordFilter {
-    Param(
-        [PSObject]$Original
-    )
-
-    return $Original | Where-Object {
-        ($_.HostName -notlike '_kerberos*') -or 
-        ($_.HostName -notlike '_ldap*') -or 
-        ($_.HostName -notlike '_kpasswd*') -or 
-        ($_.HostName -notlike '_gc*') -or 
-        ($_.HostName -notlike 'gc._msdcs')
-    }
-}
-
 Function Get-DnsZoneRecordsObject {
     Param(
         [String]$ZoneName,
         [String]$RRType,
-        [Boolean]$FilterAd
+        [Boolean]$FilterAd,
+        [String]$RecordName
     )
 
-    $parms = @{
-        ZoneName = $ZoneName
-    }
-
-    if($RRType) {
-        $parms.RRType = $RRType
-    }
-
+    $parms = @{ZoneName = $ZoneName }
+    if ($RRType) { $parms.RRType = $RRType }
+    if ($RecordName) { $parms.Name = $RecordName }
     $records = Get-DnsServerResourceRecord @parms
-
-    # Check for FilterAd flag
-    if($FilterAd) {
-        $records = Get-DnsRecordFilter -Original $records
+    if ($FilterAd) { 
+        $records = $records | Where-Object {
+            ($_.HostName -notlike '_kerberos*') -and 
+            ($_.HostName -notlike '_ldap*') -and 
+            ($_.HostName -notlike '_kpasswd*') -and 
+            ($_.HostName -notlike '_gc*') -and 
+            ($_.HostName -notlike '*._msdcs*') -and
+            ($_.HostName -notlike 'gc._msdcs') -and
+            ($_.HostName -notlike '*_ldap._tcp*') -and
+            ($_.HostName -notlike '*forestdnszones*') -and
+            ($_.HostName -notlike '*domaindnszones*')
+        }
     }
 
     $record_list = @()
-    foreach($item in $records) {
-        $record_list += Get-DnsRecordObject -ZoneName $ZoneName -Original $item
+    foreach ($item in $records) {
+        $record_list += Get-DnsRecordObject -ZoneName $ZoneName -Object $item
     }
 
     return $record_list
@@ -78,132 +63,97 @@ Function Get-DnsZoneRecordsObject {
 
 Function Get-DnsRecordObject {
     Param(
-        [PSObject]$Original,
+        [PSObject]$Object,
         [String]$ZoneName
     )
 
-    return @{
-        name    = $Object.HostName
-        fqdn    = $Object.HostName + '.' + $ZoneName
-        type    = $Object.RecordType
-        data    = $Object.ScopeId.IPAddressToString
-        ttl     = $Object.TimeToLive.TotalSeconds
+    $parms = @{
+        name = $Object.HostName.toLower()
+        fqdn = $Object.HostName.toLower() + '.' + $ZoneName.toLower()
+        type = $Object.RecordType.toLower()
+        ttl = $Object.TimeToLive.TotalSeconds
     }
+
+    if($Object.RecordType -like 'aaaa') { $parms.data = $Object.RecordData.IPv6Address.IPAddressToString }
+    if($Object.RecordType -like 'a') { $parms.data = $Object.RecordData.IPv4Address.IPAddressToString }
+    if($Object.RecordType -like 'cname') { $parms.data = $Object.RecordData.HostNameAlias }
+    if($Object.RecordType -like 'mx') {
+        $parms.data = @{
+            mail_exchange = $Object.RecordData.MailExchange
+            priority = $Object.RecordData.Priority
+        }
+    }
+    if($Object.RecordType -like 'srv') {
+        $parms.data = @{
+            domain_name = $Object.RecordData.DomainName
+            port = $Object.RecordData.Port
+            priority = $Object.RecordData.Priority
+            weight = $Object.RecordData.Weight
+        }
+    }
+
+    return $parms | Sort-Object
 }
 
 Function Get-DnsZoneObject {
-    Param(
-        [PSObject]$Object
-    )
-    $parms = @{
-        name            = $Object.ZoneName.toLower()
-        type            = $Object.ZoneType.toLower()
-        paused          = $Object.IsPaused
-        shutdown        = $Object.IsShutdown
-    }
+    Param([PSObject]$Object)
+    $parms = @{}
+    $parms.name     = $Object.ZoneName.toLower()
+    $parms.type     = $Object.ZoneType.toLower()
+    $parms.paused   = $Object.IsPaused
+    $parms.shutdown = $Object.IsShutdown
 
-    # Parse Params
-    if($Object.DynamicUpdate) { $parms.DynamicUpdate = $Object.DynamicUpdate.toLower() }
-    if($Object.IsReverseLookupZone) { $parms.reverse_lookup = $Object.IsReverseLookupZone }
-
-    # Parse Master Servers for forwarder zone
-    if($Object.ZoneType -like 'forwarder') {
-        $parms.dns_servers = $Object.MasterServers.IPAddressToString
-        $parms.forwarder_timeout = $Object.ForwarderTimeout
-    }
-
-    # Parse AD Replication/Scope
-    if(-not $Object.IsDsIntegrated) {
+    if ($Object.DynamicUpdate) { $parms.dynamic_update = $Object.DynamicUpdate.toLower() }
+    if ($Object.IsReverseLookupZone) { $parms.reverse_lookup = $Object.IsReverseLookupZone }
+    if ($Object.ZoneType -like 'forwarder' ) { $parms.forwarder_timeout = $Object.ForwarderTimeout }
+    if ($Object.MasterServers) { $parms.dns_servers = $Object.MasterServers.IPAddressToString }
+    if (-not $Object.IsDsIntegrated) {
         $parms.replication = "none"
         $parms.zone_file = $Object.ZoneFile
     } else {
         $parms.replication = $Object.ReplicationScope.toLower()
     }
 
-    return $parms
+    return $parms | Sort-Object
 }
 
+# attempt import of module
+Try { Import-Module DnsServer }
+Catch { $module.FailJson("The DnsServer module failed to load properly: $($_.Exception.Message)", $_) }
+
+# determine zone type
+if (-not $zone_type) { $zone_type = '*' }
+$zones_tmp = @()
+
+# determine data struct
+if ($type -eq "record") { $module.Result.records = @() } 
+else { $module.Result.zones = @() }
 
 Try {
-    # Import DNS Server PS Module
-    Import-Module DnsServer
-}
-Catch {
-    # Couldn't load the DhcpServer Module
-    $module.FailJson("The DnsServer module failed to load properly: $($_.Exception.Message)", $_)
-}
-
-# Evaluate Zone Type
-if(-not $zone_type) {
-    # Zone type not defined, set flag to wildcard
-    $zone_type = '*'
-}
-
-# Retreive Zone(s)
-Try {
-    if($zone_name) {
-        # Get the zone we requested, we don't care about type
-        $zones_tmp = Get-DnsServerZone -Name $zone_name
-    } else {
-        # Get all the zones
-        $zones_tmp = Get-DnsServerZone | Where-Object {
-            $_.ZoneType -like $zone_type
-        }
-    }
+    # determine current zones
+    if ($zone_name) { $zones_tmp += Get-DnsServerZone -Name $zone_name } 
+    else { $zones_tmp += Get-DnsServerZone | Where-Object { $_.ZoneType -like $zone_type } }
 }
 Catch {
     $module.FailJson("Unable to retreive zone(s) from DNS server: $($_.Exception.Message)", $_)
 }
 
-# Retreive Record(s)
 Try {
-    if($record_name) {
-        # Evaluate the number of zones retreived
-        if($zones_tmp.count) {
-            # We're requesting multiple zones and requesting a record - invalid
-            $module.FailJson("Cannot specify record_name when requesting more than one zone")
+    foreach ($zone in $zones_tmp) {
+        $zone_parsed = Get-DnsZoneObject -Object $zone
+        if ($type -eq "zone") { $module.Result.zones += $zone_parsed }
+        if ($zone.ZoneType -in @('primary', 'secondary')) {
+            $dns_tmp = Get-DnsZoneRecordsObject -RecordName $record_name -ZoneName $zone.ZoneName -FilterAd $filter_ad -RRType $record_type
         }
-        # Get the record we requested filter by record_type
-        $record_tmp = Get-DnsServerResourceRecord -ZoneName $zone_name
-        # Filter by record type
-        if($record_type) {
-            $records_tmp = $records_tmp | Where-Object {
-                ($_.RecordType -like $record_type)
-            }
+        if ($type -eq "record") { $module.Result.records += $dns_tmp }
+        if ($type -eq "all") {
+            $zone_parsed.dns_records = $dns_tmp
+            $module.Result.zones += $zone_parsed
         }
-    } else {
-        # Looking for all records
-        # Get all records for all zones, filter by record type
-
-
-        # Loop Over Zones
-        foreach($z in $zones_tmp) {
-            # Get a Parsed Object
-            $z_obj = Get-DnsZoneObject -Original $z
-            # Get a list of DNS Records in the Zone (Already Filtered by Record Type)
-            $z_obj.dns_records = Get-DnsZoneRecordsObject -ZoneName $z.ZoneName -FilterAd $filter_ad
-            $module.Result.zones += Get-DnsZoneObject -Original $z
-            # Loop Over Records
-        }
-
-        $record_tmp = Get-DnsServerResourceRecord -ZoneName $zone_name
-        # Filter by record type
-        if($record_type) {
-            $records_tmp = $records_tmp | Where-Object {
-                ($_.RecordType -like $record_type)
-            }
-        } 
     }
 }
 Catch {
     $module.FailJson("Unable to retreive record(s) from DNS server: $($_.Exception.Message)", $_)
 }
-
-# if type record is specified, we need the zone name, we need the record name OR type (finds all A records)
-
-# if type zone is specified, record_x is ignored, zone_type/name is optional
-
-# if type all is specified, we need nothing, if a zone name is specified we will filter by it,
-
 
 $module.ExitJson()

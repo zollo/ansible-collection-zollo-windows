@@ -1,0 +1,40 @@
+---
+- name: Ensure AD/DNS roles are installed
+  ansible.windows.win_feature:
+    name:
+      - AD-Domain-Services
+      - DNS
+    include_management_tools: true
+    include_sub_features: true
+    state: present
+
+- name: Ensure domain is present
+  ansible.windows.win_domain:
+    dns_domain_name: ansible.test
+    safe_mode_password: password123!
+
+- name: Reboot
+  ansible.windows.win_reboot:
+
+- block:
+  - name: Ensure loopback address is set to DNS
+    ansible.windows.win_dns_client:
+      adapter_names: '*'
+      ipv4_addresses: 127.0.0.1
+
+  - name: Reboot Again
+    ansible.windows.win_reboot:
+
+  - name: Seed testing data - zones
+    win_shell: |
+      Add-DnsServerPrimaryZone -Name "{{  }}" -ReplicationScope "Forest"
+      Add-DnsServerPrimaryZone -Name "pao.euc.vmware.test" -ReplicationScope "Domain"
+      Add-DnsServerPrimaryZone -Name "blr.euc.vmware.test" -ZoneFile "blr.euc.vmware.test.dns"
+    loop: 
+
+  - name: Seed testing data - records
+    win_shell: |
+      Add-DnsServerResourceRecord -ZoneName "atl.euc.vmware.test" -A -Name ""
+
+  - name: Run tests
+    include_tasks: tests.yml

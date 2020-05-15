@@ -1,0 +1,6 @@
+---
+win_dns_info_primary_zones:
+  - name: atl.euc.vmware.test
+    replication: forest
+  - name: pao.euc.vmware.test
+    replication: forest
