@@ -1,9 +1,28 @@
-- name: Ensure DNS server is installed
+---
+- name: Ensure AD/DNS roles are installed
   ansible.windows.win_feature:
-    name: DNS
+    name:
+      - AD-Domain-Services
+      - DNS
+    include_management_tools: true
+    include_sub_features: true
     state: present
-    include_management_tools: yes
-  register: dns_test
+
+- name: Ensure domain is present
+  ansible.windows.win_domain:
+    dns_domain_name: ansible.test
+    safe_mode_password: password123!
+
+- name: Reboot
+  ansible.windows.win_reboot:
+
+- name: Ensure loopback address is set to DNS
+  ansible.windows.win_dns_client:
+    adapter_names: '*'
+    ipv4_addresses: 127.0.0.1
+
+- name: Reboot Again to Avoid DNS Bug
+  ansible.windows.win_reboot:
 
 - name: Ensure DNS zones are absent
   win_dns_zone:
@@ -218,3 +237,70 @@
     replication: domain
   register: test11
   failed_when: test11 is changed
+
+- name: Ensure primary DNS zones are present (check mode)
+  win_dns_zone:
+    name: mehmoodkhap.euc.vmware.com
+    replication: domain
+    type: primary
+  check_mode: true
+  register: cm_test1
+  failed_when: cm_test1 is changed
+
+- name: Ensure primary DNS zones replicate to forest (check mode)
+  win_dns_zone:
+    name: chall.euc.vmware.com
+    replication: forest
+    type: primary
+  check_mode: true
+  register: cm_test2
+  failed_when: cm_test2 is changed
+
+- name: Ensure forwarder is present (check mode)
+  win_dns_zone:
+    name: nkini.euc.vmware.com
+    type: forwarder
+    dns_servers:
+      - 10.245.51.100
+      - 10.245.51.101
+      - 10.245.51.102
+  check_mode: true
+  register: cm_test3
+  failed_when: cm_test3 is changed
+
+- name: Ensure forwarder zone has specific DNS servers (check mode)
+  win_dns_zone:
+    name: ssanthanagopalan.euc.vmware.com
+    type: forwarder
+    dns_servers:
+      - 10.205.1.219
+      - 10.205.1.220
+  check_mode: true
+  register: cm_test4
+  failed_when: cm_test4 is changed
+
+- name: Ensure Active Directory integrated secondary zone is present (check mode)
+  win_dns_zone:
+    name: rrounsaville.euc.vmware.com
+    type: secondary
+    dns_servers:
+      - 10.205.1.219
+      - 10.205.1.220
+    replication: forest
+    dynamic_update: none
+  check_mode: true
+  register: cm_test5
+  failed_when: cm_test5 is changed
+
+- name: Ensure file backed stub zone is present (check mode)
+  win_dns_zone:
+    name: anup.euc.vmware.com
+    type: stub
+    dns_servers:
+      - 10.205.1.219
+      - 10.205.1.220
+    replication: none
+    dynamic_update: none
+  check_mode: true
+  register: cm_test6
+  failed_when: cm_test6 is changed
