@@ -1,0 +1,7 @@
+---
+- name: Ensure OU Exists
+  community.windows.win_domain_ou:
+    name: Zollo OU Test
+    protected: false
+    path: "{{ win_domain_ou_root_path }}"
+    state: present

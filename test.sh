@@ -12,6 +12,7 @@ cd $COLLECTION_PATH
 # run validate-modules
 if [ $TEST_TYPE == 'module' ]; then
     echo "Running Module Tests"
+    echo "Testing Module: $MODULE_NAME"
     ansible-test sanity --color -v \
         --docker default --test validate-modules \
         --base-branch "master" \ 

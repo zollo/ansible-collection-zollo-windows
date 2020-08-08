@@ -32,11 +32,12 @@ options:
     type: str
   state:
     description:
-      - Specifies the desired state of the DNS zone.
+      - Specifies the desired state of the OU.
       - When l(state=present) the module will attempt to create the specified
-        DNS zone if it does not already exist.
-      - When l(state=absent), the module will remove the specified DNS
-        zone and all subsequent DNS records.
+        OU if it does not already exist.
+      - When l(state=absent), the module will remove the specified OU.
+      - When l(state=absent) and l(recursive=true), the module will remove all
+        the OU and all child OU's.
     type: str
     default: present
     choices: [ present, absent ]
@@ -44,23 +45,25 @@ options:
     description:
       - Removes the OU and any child items it contains.
       - You must specify this parameter to remove an OU that is not empty.
-    type: str
-    default: present
-    choices: [ present, absent ]
-author:
-- Joseph Zollo (@joezollo)
+    type: bool
+    default: false
+  properties:
+    description:
+      - Placeholder
+    type: bool
+    default: false
 '''
 
 EXAMPLES = r'''
 - name: Ensure organizational unit is present
-  win_domain_ou:
-    name: users
+  community.windows.win_domain_ou:
+    name: superusers
     path: DC=euc,DC=vmware,DC=lan
     state: present
     protected: true
 
 - name: Ensure organizational unit is absent
-  win_domain_ou:
+  community.windows.win_domain_ou:
     name: users
     path: DC=euc,DC=vmware,DC=lan
     state: present
@@ -73,10 +76,15 @@ ou:
   returned: When l(state=present)
   type: dict
   sample:
-    name: 
-    type: 
-    dynamic_update: 
-    state: 
-    replication: 
-    dns_servers: 
+    name:
+    path:
+    protected
+    properties:
+      display_name:
+      description:
+      city:
+      street_address:
+      postal_code:
+      country:
+      managed_by:
 '''
