@@ -13,7 +13,10 @@ cd $COLLECTION_PATH
 if [ $TEST_TYPE == 'module' ]; then
     echo "Running Module Tests"
     ansible-test sanity --color -v \
-        --docker default --test validate-modules --base-branch "master" plugins/modules/${MODULE_NAME}.ps1 plugins/modules/${MODULE_NAME}.py
+        --docker default --test validate-modules \
+        --base-branch "master" \ 
+        plugins/modules/${MODULE_NAME}.ps1 \
+        plugins/modules/${MODULE_NAME}.py
 fi
 
 if [ $TEST_TYPE == 'sanity' ]; then

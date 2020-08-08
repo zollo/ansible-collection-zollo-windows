@@ -5,10 +5,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-ANSIBLE_METADATA = {'status': ['preview'],
-                    'supported_by': 'community',
-                    'metadata_version': '1.1'}
-
 DOCUMENTATION = r'''
 ---
 module: win_domain_ou
@@ -18,16 +14,16 @@ requirements:
   - This module requires Windows Server 2012 or Newer
 description:
   - Manage Active Directory Organizational Units
-  - Adds, Removes and Modifies DNS Zones, Forward, Stub & Reverse
+  - Adds, Removes and Modifies Active Directory Organizational Units
   - Task should be delegated to a Windows Active Directory Domain Controller
 options:
   name:
     description:
-      - 
+      - The name of the Organizational Unit
     type: str
   protected:
     description:
-      - 
+      - Indicates whether to prevent the object from being deleted.
     type: bool
     default: forest
   path:
@@ -36,7 +32,18 @@ options:
     type: str
   state:
     description:
-      - 
+      - Specifies the desired state of the DNS zone.
+      - When l(state=present) the module will attempt to create the specified
+        DNS zone if it does not already exist.
+      - When l(state=absent), the module will remove the specified DNS
+        zone and all subsequent DNS records.
+    type: str
+    default: present
+    choices: [ present, absent ]
+  recursive:
+    description:
+      - Removes the OU and any child items it contains.
+      - You must specify this parameter to remove an OU that is not empty.
     type: str
     default: present
     choices: [ present, absent ]
@@ -45,7 +52,7 @@ author:
 '''
 
 EXAMPLES = r'''
-- name: Ensure organizational is present
+- name: Ensure organizational unit is present
   win_domain_ou:
     name: users
     path: DC=euc,DC=vmware,DC=lan
