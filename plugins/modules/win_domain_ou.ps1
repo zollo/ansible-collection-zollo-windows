@@ -10,7 +10,7 @@ $spec = @{
     options = @{
         state = @{ type = "str"; choices = @("absent", "present"); default = "present" }
         name = @{ type = "str"; required = $true }
-        protected = @{ type = "bool"; }
+        protected = @{ type = "bool"; default = $false }
         path = @{ type = "str"; required = $true }
         recursive = @{ type = "bool"; default = $false }
         properties = @{
@@ -71,7 +71,6 @@ Function Get-OuObject {
     if ($Object.ManagedBy) { $parms.properties.managed_by = $Object.ManagedBy }
     if ($Object.City) { $parms.properties.city = $Object.City }
     if ($Object.Country) { $parms.properties.country = $Object.Country }
-    if ($Object.Name) { $parms.properties.name = $Object.Name }
     if ($Object.PostalCode) { $parms.properties.postal_code = $Object.PostalCode }
     if ($Object.State) { $parms.properties.state = $Object.State }
     if ($Object.StreetAddress) { $parms.properties.street_address = $Object.StreetAddress }
@@ -84,7 +83,7 @@ Catch { $module.FailJson("The ActiveDirectory module failed to load properly: $(
 
 # determine current object state
 Try {
-    $current_ou = Get-ADOrganizationalUnit -Filter * -Properties * | Where-Object { 
+    $current_ou = Get-ADOrganizationalUnit -Filter * -Properties * | Where-Object {
         $_.DistinguishedName -eq "OU=$name,$path"
     }
     $module.Diff.before = Get-OuObject -Object $current_ou
@@ -96,7 +95,6 @@ Try {
 
 if ($state -eq "present") {
     # parse inputs
-    if ($protected) { $parms.ProtectedFromAccidentalDeletion = $protected }
     if ($properties.city) { $parms.City = $properties.city }
     if ($properties.description) { $parms.Description = $properties.description }
     if ($properties.display_name) { $parms.DisplayName = $properties.display_name }
@@ -109,7 +107,7 @@ if ($state -eq "present") {
     if(-not $current_ou) {
         $parms.Name = $name
         $parms.Path = $path
-        Try { New-ADOrganizationalUnit @parms -WhatIf:$check_mode }
+        Try { New-ADOrganizationalUnit @parms -ProtectedFromAccidentalDeletion $protected -WhatIf:$check_mode }
         Catch { $module.FailJson("Failed to create organizational unit: $($_.Exception.Message)") }
     }
 
@@ -142,19 +140,14 @@ if ($state -eq "absent") {
 
 # determine if a change was made
 Try {
-    $new_ou = Get-ADOrganizationalUnit -Filter * -Properties * | Where-Object { 
+    $new_ou = Get-ADOrganizationalUnit -Filter * -Properties * | Where-Object {
         $_.DistinguishedName -eq "OU=$name,$path"
     }
-    $new_ou_obj = Get-OuObject $new_ou
-    # compare the two objects
-    Try {
-        if (-not (Compare-OuObject -Original $current_ou -Updated $new_ou)) {
-            $module.Result.changed = $true
-            $module.Result.zone = Get-OuObject -Object $new_ou
-            $module.Diff.after = Get-OuObject -Object $new_ou
-        }
-    } Catch {
-        $module.FailJson("Failed to compare objects: $($_.Exception.Message)", $_)
+    # compare old/new objects
+    if (-not (Compare-OuObject -Original $current_ou -Updated $new_ou)) {
+        $module.Result.changed = $true
+        $module.Result.ou = Get-OuObject -Object $new_ou
+        $module.Diff.after = Get-OuObject -Object $new_ou
     }
 
     # simulate changes if check mode
@@ -170,7 +163,7 @@ Try {
         $module.Diff.after = Get-OuObject -Object $new_ou
     }
 } Catch {
-    $module.FailJson("Failed to lookup new OU: $($_.Exception.Message)", $_)
+    $module.FailJson("Failed to lookup new organizational unit: $($_.Exception.Message)", $_)
 }
 
 $module.ExitJson()

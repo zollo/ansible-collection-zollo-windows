@@ -5,10 +5,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
-ANSIBLE_METADATA = {'status': ['preview'],
-                    'supported_by': 'community',
-                    'metadata_version': '1.1'}
-
 DOCUMENTATION = r'''
 ---
 module: win_dns_info
@@ -65,37 +61,37 @@ options:
 
 EXAMPLES = r'''
 - name: Gather info on all DNS records in a single zone
-  win_dns_info:
+  community.windows.win_dns_info:
     type: zone
     zone_name: henretty.euc.vmware.com
 
 - name: Gather info on all primary DNS zones
-  win_dns_info:
+  community.windows.win_dns_info:
     type: zone
     zone_type: primary
 
 - name: Gather info on all primary DNS zones and their records
-  win_dns_info:
+  community.windows.win_dns_info:
     type: all
     zone_type: primary
 
 - name: Gather info on all DNS zones and records
-  win_dns_info:
+  community.windows.win_dns_info:
     type: all
 
 - name: Gather info on all A records in the zone chall.euc.vmware.com
-  win_dns_info:
+  community.windows.win_dns_info:
     type: all
     zone_name: chall.euc.vmware.com
     record_type: A
 
 - name: Gather info on DNS zone sde.vmware.com
-  win_dns_info:
+  community.windows.win_dns_info:
     type: zone
     zone_name: sde.vmware.com
 
 - name: Gather info on a single DNS record
-  win_dns_info:
+  community.windows.win_dns_info:
     type: record
     zone_name: sde.vmware.com
     record_name: shri
@@ -108,29 +104,32 @@ zones:
   type: dict
   sample:
     - name: rds.vmware.com
-      type:
-      dynamic_update:
-      state:
-      replication:
+      type: primary
+      dynamic_update: secure
+      replication: forest
       nameservers:
+        - 10.125.100.50
+        - 10.125.100.51
       dns_records:
-        - name: basavaraju
-          fqdn: basavaraju.rds.vmware.com
+        - name: jwilliams
+          fqdn: jwilliams.rnd.vmware.com
           type: A
-          data: 172.16.75.100
+          data: 172.16.200.100
           ttl: 3600
-        - name: dgemzer
-          fqdn: dgemzer.rds.vmware.com
+        - name: vmcneeley
+          fqdn: vmcneeley.rnd.vmware.com
           type: MX
-          data: test-mail.rds.vmware.com
-          priority: 0
+          data:
+            mail_exchange: mail.rnd.vmware.com
+            priority: 0
           ttl: 900
     - name: sde.vmware.com
       type: primary
-      dynamic_update:
-      state:
-      replication:
+      dynamic_update: secure
+      replication: forest
       nameservers:
+        - 10.125.107.50
+        - 10.125.108.50
       dns_records:
         - name: chall
           fqdn: chall.sde.vmware.com
@@ -143,16 +142,16 @@ records:
   returned: When l(type=record) or l(type=all)
   type: dict
   sample:
-    - name: basavaraju
-      fqdn: basavaraju.rds.vmware.com
+    - name: asedevie
+      fqdn: asedevie.euc.vmware.com
       type: A
-      data: 172.16.75.100
-      ttl: 3600
-    - name: dgemzer
-      fqdn: dgemzer.rds.vmware.com
+      data: 10.100.100.85
+      ttl: 600
+    - name: paynem
+      fqdn: paynem.euc.vmware.com
       type: MX
-      data: 
-        mail_exchange: test-mail.rds.vmware.com
+      data:
+        mail_exchange: tech-proposals.euc.vmware.com
         priority: 0
       ttl: 900
 '''

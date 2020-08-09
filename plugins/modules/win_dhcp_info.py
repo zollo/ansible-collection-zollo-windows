@@ -53,39 +53,39 @@ options:
 
 EXAMPLES = r'''
 - name: Gather info on all DHCP reservations
-  win_dhcp_info:
+  community.windows.win_dhcp_info:
     type: reservation
   register: dhcp
 
 - name: Gather info on a DHCP reservation with the MAC address 00-A1-B2-C2-D4-E5
-  win_dhcp_info:
+  community.windows.win_dhcp_info:
     type: reservation
     mac: 00-A1-B2-C2-D4-E5
   register: dhcp
 
 - name: Gather info on all DHCP leases
-  win_dhcp_info:
+  community.windows.win_dhcp_info:
     type: lease
   register: dhcp
 
 - name: Gather info on all DHCP scopes
-  win_dhcp_info:
+  community.windows.win_dhcp_info:
     type: scope
   register: dhcp
 
 - name: Gather info on all DHCP leases in the 192.168.55.0 scope
-  win_dhcp_info:
+  community.windows.win_dhcp_info:
     type: lease
     scope_id: 192.168.55.0
   register: dhcp
 
 - name: Gather info on all DHCP reservations, leases and scopes
-  win_dhcp_info:
+  community.windows.win_dhcp_info:
     type: lease
   register: dhcp
 
 - name: Gather info on a DHCP lease with the MAC address 00:AA:BB:C3:E4:F5
-  win_dhcp_info:
+  community.windows.win_dhcp_info:
     type: lease
     mac: '00:AA:BB:C3:E4:F5'
   register: dhcp

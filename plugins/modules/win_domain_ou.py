@@ -107,23 +107,25 @@ options:
 '''
 
 EXAMPLES = r'''
-- name: Ensure OU is present
+- name: Ensure OU is present & protected
   community.windows.win_domain_ou:
-    name: superusers
-    path: DC=euc,DC=vmware,DC=lan
+    name: EUC Users
+    path: "DC=euc,DC=vmware,DC=lan"
     state: present
     protected: true
+  delegate_to: win-ad1.euc.vmware.lab
 
 - name: Ensure OU is absent
   community.windows.win_domain_ou:
-    name: users
-    path: DC=euc,DC=vmware,DC=lan
+    name: EUC Users
+    path: "DC=euc,DC=vmware,DC=lan"
     state: absent
+  delegate_to: win-ad1.euc.vmware.lab
 
-- name: Ensure OU updated with new properties
+- name: Ensure OU is present with specific properties
   community.windows.win_domain_ou:
     name: WS1Users
-    path: DC=euc,DC=vmware,DC=lan
+    path: "CN=EUC Users,DC=euc,DC=vmware,DC=lan"
     protected: true
     properties:
       city: Sandy Springs
@@ -132,6 +134,7 @@ EXAMPLES = r'''
       country: US
       description: EUC Business Unit
       postal_code: 30189
+  delegate_to: win-ad1.euc.vmware.lab
 
 - name: Ensure OU updated with new properties
   community.windows.win_domain_ou:
@@ -142,6 +145,7 @@ EXAMPLES = r'''
       city: Atlanta
       state: Georgia
       managed_by: jzollo@vmware.com
+  delegate_to: win-ad1.euc.vmware.lab
 '''
 
 RETURN = r'''
