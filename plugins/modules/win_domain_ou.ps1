@@ -8,22 +8,22 @@
 
 $spec = @{
     options = @{
-        name = @{ type = "str" }
+        state = @{ type = "str"; choices = @("absent", "present"); default = "present" }
+        name = @{ type = "str"; required = $true }
         protected = @{ type = "bool"; }
-        path = @{ type = "str" }
-        state = @{ type = "str"; choices = "absent", "present"; default = "present" }
-        recusive = @{ type = "bool"; }
+        path = @{ type = "str"; required = $true }
+        recursive = @{ type = "bool"; default = $false }
         properties = @{
-            type = "dict"
-            required = $false
+            type = "dict";
             options = @{
-                display_name = @{ type = "str"; required = $false }
-                description = @{ type = "str"; required = $false }
-                city = @{ type = "str"; required = $false }
-                street_address = @{ type = "str"; required = $false }
-                postal_code = @{ type = "str"; required = $false }
-                country = @{ type = "str"; required = $false }
-                managed_by = @{ type = "str"; required = $false }
+                managed_by = @{ type = "str"; }
+                display_name = @{ type = "str"; }
+                description = @{ type = "str"; }
+                state = @{ type = "str"; }
+                city = @{ type = "str"; }
+                street_address = @{ type = "str"; }
+                postal_code = @{ type = "int"; }
+                country = @{ type = "str"; }
             }
         }
     }
@@ -42,21 +42,39 @@ $properties = $module.Params.properties
 
 $parms = @{}
 
-Function Get-OUObject {
+Function Compare-OuObject {
+    Param(
+        [PSObject]$Original,
+        [PSObject]$Updated
+    )
+
+    if ($Original -eq $false) { return $false }
+    $props = @('Name', 'ObjectGUID', 'ProtectedFromAccidentalDeletion',
+                'DistinguishedName', 'ManagedBy', 'City', 'Country',
+                'Name', 'State', 'PostalCode', 'StreetAddress')
+    $x = Compare-Object $Original $Updated -Property $props
+    $x.Count -eq 0
+}
+
+Function Get-OuObject {
     Param([PSObject]$Object)
     $parms = @{
-        name = $Object.Name
-        guid = $Object.ObjectGUID.toString()
         distinguished_name = $Object.DistinguishedName.toString()
+        protected = $Object.ProtectedFromAccidentalDeletion
     }
 
-    if($Object.ManagedBy) { $parms.managed_by = $Object.ManagedBy }
-    if($Object.City) { $parms.city = $Object.City }
-    if($Object.Country) { $parms.country = $Object.Country }
-    if($Object.Name) { $parms.name = $Object.Name }
-    if($Object.PostalCode) { $parms.postal_code = $Object.PostalCode }
-    if($Object.State) { $parms.state = $Object.State }
-    if($Object.StreetAddress) { $parms.street_address = $Object.StreetAddress }
+    $parms.properties = @{}
+    if ($Object.Created) { $parms.created = $Object.Created.toString() }
+    if ($Object.ObjectGUID) { $parms.guid = $Object.ObjectGUID.toString() }
+    if ($Object.Name) { $parms.name = $Object.Name }
+    if ($Object.Modified) { $parms.modified = $Object.Modified.toString() }
+    if ($Object.ManagedBy) { $parms.properties.managed_by = $Object.ManagedBy }
+    if ($Object.City) { $parms.properties.city = $Object.City }
+    if ($Object.Country) { $parms.properties.country = $Object.Country }
+    if ($Object.Name) { $parms.properties.name = $Object.Name }
+    if ($Object.PostalCode) { $parms.properties.postal_code = $Object.PostalCode }
+    if ($Object.State) { $parms.properties.state = $Object.State }
+    if ($Object.StreetAddress) { $parms.properties.street_address = $Object.StreetAddress }
     return $parms | Sort-Object
 }
 
@@ -64,10 +82,12 @@ Function Get-OUObject {
 Try { Import-Module ActiveDirectory }
 Catch { $module.FailJson("The ActiveDirectory module failed to load properly: $($_.Exception.Message)", $_) }
 
-# find current ou
+# determine current object state
 Try {
-    $current_ou = Get-ADOrganizationalUnit -Identity "OU=$name,$path"
-    $module.Diff.before = Get-OUObject -Object $current_ou
+    $current_ou = Get-ADOrganizationalUnit -Filter * -Properties * | Where-Object { 
+        $_.DistinguishedName -eq "OU=$name,$path"
+    }
+    $module.Diff.before = Get-OuObject -Object $current_ou
     $module.Result.ou = $module.Diff.before
 } Catch {
     $module.Diff.before = ""
@@ -75,60 +95,82 @@ Try {
 }
 
 if ($state -eq "present") {
-    # ou doesn't exist already
-    Try {
-        if(-not $current_ou) {
-            New-ADOrganizationalUnit -Name "$name" -Path "$path" -ProtectedFromAccidentalDeletion $protected -WhatIf:$check_mode
-            $module.Result.changed = $true
-        }
-    } Catch {
-        $module.FailJson("Failed to create Active Directory OU $name : $($_.Exception.Message)")
+    # parse inputs
+    if ($protected) { $parms.ProtectedFromAccidentalDeletion = $protected }
+    if ($properties.city) { $parms.City = $properties.city }
+    if ($properties.description) { $parms.Description = $properties.description }
+    if ($properties.display_name) { $parms.DisplayName = $properties.display_name }
+    if ($properties.country) { $parms.Country = $properties.country }
+    if ($properties.managed_by) { $parms.ManagedBy = $properties.managed_by }
+    if ($properties.street_address) { $parms.StreetAddress = $properties.street_address }
+    if ($properties.state) { $parms.State = $properties.state }
+
+    # ou does not exist, create object
+    if(-not $current_ou) {
+        $parms.Name = $name
+        $parms.Path = $path
+        Try { New-ADOrganizationalUnit @parms -WhatIf:$check_mode }
+        Catch { $module.FailJson("Failed to create organizational unit: $($_.Exception.Message)") }
     }
 
-    # ou exists, update props
-    if($current_ou) {
-        # placeholder
+    # ou exists, update object
+    if ($current_ou) {
+        Try { Set-ADOrganizationalUnit -Identity "OU=$name,$path" @parms -WhatIf:$check_mode }
+        Catch {
+            $module.Result.debug = $parms
+            $module.FailJson("Failed to update organizational unit: $($_.Exception.Message)") }
     }
 }
 
 if ($state -eq "absent") {
-    # ou exists
+    # ou exists, delete object
     if ($current_ou -and -not $check_mode) {
         Try {
-            Remove-ADOrganizationalUnit -Identity "OU=$name,$path" -Confirm:$False -WhatIf:$check_mode
+            # override protected from accidental deletion
+            Set-ADOrganizationalUnit -Identity "OU=$name,$path" -ProtectedFromAccidentalDeletion $false -Confirm:$False -WhatIf:$check_mode
+            # check recursive deletion
+            if ($recursive) { Remove-ADOrganizationalUnit -Identity "OU=$name,$path" -Confirm:$False -WhatIf:$check_mode -Recursive }
+            else { Remove-ADOrganizationalUnit -Identity "OU=$name,$path" -Confirm:$False -WhatIf:$check_mode }
             $module.Result.changed = $true
             $module.Diff.after = ""
         } Catch {
             $module.FailJson("Failed to remove OU: $($_.Exception.Message)", $_)
         }
     }
+    $module.ExitJson()
 }
 
-# # determine if a change was made
-# Try {
-#     $new_ou = Get-ADOrganizationalUnit -Identity "OU=$name,$path"
-#     $new_ou_obj = Get-OUObject $new_ou
+# determine if a change was made
+Try {
+    $new_ou = Get-ADOrganizationalUnit -Filter * -Properties * | Where-Object { 
+        $_.DistinguishedName -eq "OU=$name,$path"
+    }
+    $new_ou_obj = Get-OuObject $new_ou
+    # compare the two objects
+    Try {
+        if (-not (Compare-OuObject -Original $current_ou -Updated $new_ou)) {
+            $module.Result.changed = $true
+            $module.Result.zone = Get-OuObject -Object $new_ou
+            $module.Diff.after = Get-OuObject -Object $new_ou
+        }
+    } Catch {
+        $module.FailJson("Failed to compare objects: $($_.Exception.Message)", $_)
+    }
 
-#     if (-not (Compare-DnsZone -Original $current_zone -Updated $new_zone)) {
-#         $module.Result.changed = $true
-#         $module.Result.zone = Get-OUObject -Object $new_zone
-#         $module.Diff.after = Get-OUObject -Object $new_zone
-#     }
-
-#     # simulate changes if check mode
-#     if ($check_mode) {
-#         $new_zone = @{}
-#         $current_zone.PSObject.Properties | ForEach-Object {
-#             if($parms[$_.Name]) {
-#                 $new_zone[$_.Name] = $parms[$_.Name]
-#             } else {
-#                 $new_zone[$_.Name] = $_.Value
-#             }
-#         }
-#         $module.Diff.after = Get-OUObject -Object $new_zone
-#     }
-# } Catch {
-#     $module.FailJson("Failed to lookup new OU $($name): $($_.Exception.Message)", $_)
-# }
+    # simulate changes if check mode
+    if ($check_mode) {
+        $new_ou = @{}
+        $current_ou.PSObject.Properties | ForEach-Object {
+            if($parms[$_.Name]) {
+                $new_ou[$_.Name] = $parms[$_.Name]
+            } else {
+                $new_ou[$_.Name] = $_.Value
+            }
+        }
+        $module.Diff.after = Get-OuObject -Object $new_ou
+    }
+} Catch {
+    $module.FailJson("Failed to lookup new OU: $($_.Exception.Message)", $_)
+}
 
 $module.ExitJson()

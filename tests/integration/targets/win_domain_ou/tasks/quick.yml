@@ -1,7 +1,52 @@
 ---
 - name: Ensure OU Exists
   community.windows.win_domain_ou:
-    name: Zollo OU Test
+    name: End User Computing
     protected: false
     path: "{{ win_domain_ou_root_path }}"
     state: present
+
+- name: Ensure OU is present
+  community.windows.win_domain_ou:
+    name: End User Computing
+    protected: false
+    path: "{{ win_domain_ou_root_path }}"
+    state: present
+  register: test1_create_ou
+
+- name: Ensure OU has updated properties
+  community.windows.win_domain_ou:
+    name: End User Computing
+    protected: true
+    path: "{{ win_domain_ou_root_path }}"
+    state: present
+    properties:
+      city: Sandy Springs
+      state: Georgia
+      street_address: 1155 Perimeter Center West
+      country: US
+      description: EUC Business Unit
+      postal_code: 30189
+  register: test2_update_ou
+
+- name: Ensure OU structure is present
+  community.windows.win_domain_ou:
+    name: "{{ item.name }}"
+    protected: false
+    path: "{{ item.path }}"
+  loop:
+    - path: "{{ win_domain_ou_root_path }}"
+      name: VMware
+    - path: "OU=VMware,{{ win_domain_ou_root_path }}"
+      name: End User Computing
+    - path: "OU=End User Computing,OU=VMware,{{ win_domain_ou_root_path }}"
+      name: Workspace ONE Cloud Services
+  register: test3_create_ou_structure
+
+- name: Ensure OU structure is absent, recursive
+  community.windows.win_domain_ou:
+    name: VMware
+    path: "{{ win_domain_ou_root_path }}"
+    state: absent
+    recursive: true
+  register: test4_remove_ou_structure

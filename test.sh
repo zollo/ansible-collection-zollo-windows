@@ -15,9 +15,7 @@ if [ $TEST_TYPE == 'module' ]; then
     echo "Testing Module: $MODULE_NAME"
     ansible-test sanity --color -v \
         --docker default --test validate-modules \
-        --base-branch "master" \ 
-        plugins/modules/${MODULE_NAME}.ps1 \
-        plugins/modules/${MODULE_NAME}.py
+        --base-branch "master" plugins/modules/${MODULE_NAME}.ps1 plugins/modules/${MODULE_NAME}.py
 fi
 
 if [ $TEST_TYPE == 'sanity' ]; then

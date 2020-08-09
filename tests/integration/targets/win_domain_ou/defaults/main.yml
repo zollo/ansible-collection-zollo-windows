@@ -1,3 +1,3 @@
 ---
 win_domain_ou_test_type: default
-win_domain_ou_root_path: DC=home,DC=zollo,DC=net
+win_domain_ou_root_path: DC=ansible,DC=test
