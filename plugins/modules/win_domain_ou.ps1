@@ -56,6 +56,29 @@ Function Compare-OuObject {
     $x.Count -eq 0
 }
 
+Function Get-SimulatedOu {
+    Param($Object)
+
+    $parms = @{
+        Name = $Object.name
+        DistinguishedName = "OU=$($Object.name)," + $Object.path
+        ProtectedFromAccidentalDeletion = $Object.protected
+    }
+
+    if ($Object.properties) {
+        if ($Object.properties.description) { $parms.Description = $Object.properties.description }
+        if ($Object.properties.city) { $parms.City = $Object.properties.city }
+        if ($Object.properties.state) { $parms.State = $Object.properties.state }
+        if ($Object.properties.street_address) { $parms.StreetAddress = $Object.properties.street_address }
+        if ($Object.properties.postal_code) { $parms.PostalCode = $Object.properties.postal_code }
+        if ($Object.properties.country) { $parms.Country = $Object.properties.country }
+        if ($Object.properties.managed_by) { $parms.ManagedBy = $Object.properties.managed_by }
+    }
+
+    # convert to psobject & return
+    return New-Object psobject -Property $parms
+}
+
 Function Get-OuObject {
     Param([PSObject]$Object)
     $parms = @{
@@ -140,27 +163,32 @@ if ($state -eq "absent") {
 
 # determine if a change was made
 Try {
-    $new_ou = Get-ADOrganizationalUnit -Filter * -Properties * | Where-Object {
-        $_.DistinguishedName -eq "OU=$name,$path"
+    if (-not $check_mode) {
+        $new_ou = Get-ADOrganizationalUnit -Filter * -Properties * | Where-Object {
+            $_.DistinguishedName -eq "OU=$name,$path"
+        }
+        # compare old/new objects
+        if (-not (Compare-OuObject -Original $current_ou -Updated $new_ou)) {
+            $module.Result.changed = $true
+            $module.Result.ou = Get-OuObject -Object $new_ou
+            $module.Diff.after = Get-OuObject -Object $new_ou
+        }
     }
-    # compare old/new objects
-    if (-not (Compare-OuObject -Original $current_ou -Updated $new_ou)) {
-        $module.Result.changed = $true
-        $module.Result.ou = Get-OuObject -Object $new_ou
+
+    # simulate changes
+    if ($check_mode -and $current_ou) {
+        $new_ou = @{}
+        $current_ou.PSObject.Properties | ForEach-Object {
+            if ($parms[$_.Name]) { $new_ou[$_.Name] = $parms[$_.Name] }
+            else { $new_ou[$_.Name] = $_.Value }
+        }
         $module.Diff.after = Get-OuObject -Object $new_ou
     }
 
-    # simulate changes if check mode
-    if ($check_mode) {
-        $new_ou = @{}
-        $current_ou.PSObject.Properties | ForEach-Object {
-            if($parms[$_.Name]) {
-                $new_ou[$_.Name] = $parms[$_.Name]
-            } else {
-                $new_ou[$_.Name] = $_.Value
-            }
-        }
-        $module.Diff.after = Get-OuObject -Object $new_ou
+    # simulate new ou created
+    if ($check_mode -and -not $current_ou) {
+        $simulated_ou = Get-SimulatedOu -Object $parms
+        $module.Diff.after = Get-OuObject -Object $simulated_ou
     }
 } Catch {
     $module.FailJson("Failed to lookup new organizational unit: $($_.Exception.Message)", $_)

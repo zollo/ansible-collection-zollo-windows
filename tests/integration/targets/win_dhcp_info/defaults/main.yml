@@ -1,0 +1,18 @@
+---
+win_dhcp_info_scopes:
+  - name: scope1
+    start_range: 192.168.1.100
+    end_range: 192.168.1.199
+    subnet: 255.255.255.0
+  - name: scope2
+    start_range: 192.168.2.100
+    end_range: 192.168.2.199
+    subnet: 255.255.255.0
+win_dhcp_info_leases:
+  - ip: 10.100.125.100
+    scope_id: 
+    client_id: F0-DE-F1-7A-00-5E
+win_dhcp_info_reservations:
+  - ip: 10.100.125.100
+    scope_id: 
+    client_id: F0-DE-F1-7A-00-5E

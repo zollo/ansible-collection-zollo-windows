@@ -1,0 +1,25 @@
+---
+- block:
+  - name: Check DHCP Service/Role Install State
+    ansible.windows.win_feature:
+      name: DHCP
+      state: present
+      include_management_tools: yes
+    register: dhcp_role
+
+  - name: Reboot if Necessary
+    ansible.windows.win_reboot:
+    when: dhcp_role.reboot_required
+
+  - name: Seed testing data - scopes
+    win_shell: |
+      Add-DhcpServerV4Scope -Name "{{ item.name }}" -StartRange {{ item.start_range }} -EndRange {{ item.end_range }} -SubnetMask {{ item.subnet }}
+    loop: "{{ win_dhcp_info_scopes }}"
+
+  - name: Seed testing data - leases
+    win_shell: |
+      Add-DhcpServerv4Lease -IPAddress {{ item.ip }} -ScopeId {{ item.scope_id }} -ClientId "{{ item.client_id }}" -HostName "MyComputer.contoso.com"
+    loop: "{{ win_dhcp_info_leases }}"
+
+  - name: Run tests
+    include_tasks: tests.yml
