@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
+
 DOCUMENTATION = r'''
 ---
 module: win_domain_ou
@@ -17,10 +18,21 @@ description:
   - Adds, Removes and Modifies Active Directory Organizational Units
   - Task should be delegated to a Windows Active Directory Domain Controller
 options:
+  state:
+    description:
+      - Specifies the desired state of the OU.
+      - When l(state=present) the module will attempt to create the specified
+        OU if it does not already exist.
+      - When l(state=absent), the module will remove the specified OU and all
+        child OU's recursively.
+    type: str
+    default: present
+    choices: [ present, absent ]
   name:
     description:
       - The name of the Organizational Unit
     type: str
+    required: true
   protected:
     description:
       - Indicates whether to prevent the object from being deleted. When this
@@ -32,47 +44,50 @@ options:
     description:
       - Specifies the X.500 path of the OU or container where the new object is
         created.
+      - If not defined, new OU objects will be created at the base distinguished
+        name for the domain. For test.domain.com, a new OU would be created at 
+        l(OU=New,DN=test,DN=domain,DN=com).
     type: str
-  state:
+  domain_username:
     description:
-      - Specifies the desired state of the OU.
-      - When l(state=present) the module will attempt to create the specified
-        OU if it does not already exist.
-      - When l(state=absent), the module will remove the specified OU.
-      - When l(state=absent) and l(recursive=true), the module will remove all
-        the OU and all child OU's.
+      - The username to use when interacting with AD.
+      - If this is not set then the user Ansible used to log in with will be
+        used instead when using CredSSP or Kerberos with credential delegation.
     type: str
-    default: present
-    choices: [ present, absent ]
-  recursive:
+  domain_password:
     description:
-      - Removes the OU and any child items it contains.
-      - You must specify this parameter to remove an OU that is not empty.
-    type: bool
-    default: false
-  properties:
+      - The password for I(username).
+    type: str
+  domain_server:
+    description:
+      - Specifies the Active Directory Domain Services instance to connect to.
+      - Can be in the form of an FQDN or NetBIOS name.
+      - If not specified then the value is based on the domain of the computer
+        running PowerShell.
+    type: str
+  managed_by:
+    description:
+      - Specifies the user or group that manages the object by providing one of the
+        following property values - distinguished name, objectGUID, objectSid (security
+        identifier) or sAMAccountName (SAM account name).
+    type: str
+  display_name:
+    description:
+      - Specifies the display name of the object. This parameter sets the DisplayName
+        property of the OU object. The LDAP display name (ldapDisplayName) for this
+        property is displayName.
+    type: str
+  description:
+    description:
+      - Specifies a description of the object. This parameter sets the
+        value of the Description property for the OU object. The LDAP
+        display name (ldapDisplayName) for this property is description.
+    type: str
+  location:
     type: dict
     description:
-      - Defines specific LDAP properties for the organizational unit.
+      - Defines specific LDAP based properties for the organizational unit.
     suboptions:
-      managed_by:
-        description:
-          - Specifies the user or group that manages the object by providing one of the
-            following property values - distinguished name, objectGUID, objectSid (security
-            identifier) or sAMAccountName (SAM account name).
-        type: str
-      display_name:
-        description:
-          - Specifies the display name of the object. This parameter sets the DisplayName
-            property of the OU object. The LDAP display name (ldapDisplayName) for this
-            property is displayName.
-        type: str
-      description:
-        description:
-          - Specifies a description of the object. This parameter sets the
-            value of the Description property for the OU object. The LDAP
-            display name (ldapDisplayName) for this property is description.
-        type: str
       state:
         description:
           - Specifies a state or province. This parameter sets the State property
@@ -104,48 +119,54 @@ options:
           - This must be the two letter country code, examples - US (United States),
             BM (Bermuda), MX (Mexico), FR (France).
         type: str
+  attributes:
+    type: dict
+    description:
+      - Defines specific LDAP properties for the organizational unit.
+      - Provides enables a one-to-one mapping to LDAP properties (keys) 
+        to values.
 '''
 
 EXAMPLES = r'''
 - name: Ensure OU is present & protected
   community.windows.win_domain_ou:
     name: EUC Users
-    path: "DC=euc,DC=vmware,DC=lan"
-    state: present
     protected: true
-  delegate_to: win-ad1.euc.vmware.lab
 
 - name: Ensure OU is absent
   community.windows.win_domain_ou:
     name: EUC Users
-    path: "DC=euc,DC=vmware,DC=lan"
     state: absent
-  delegate_to: win-ad1.euc.vmware.lab
 
 - name: Ensure OU is present with specific properties
   community.windows.win_domain_ou:
-    name: WS1Users
-    path: "CN=EUC Users,DC=euc,DC=vmware,DC=lan"
+    name: users
     protected: true
-    properties:
+    location:
       city: Sandy Springs
       state: Georgia
       street_address: 1155 Perimeter Center West
       country: US
-      description: EUC Business Unit
       postal_code: 30189
-  delegate_to: win-ad1.euc.vmware.lab
+    description: EUC Business Unit
+    attributes:
+      extensionName: Jenny
+      url:
+        - ansible.com
+        - https://ansible.com
 
 - name: Ensure OU updated with new properties
   community.windows.win_domain_ou:
-    name: WS1Users
-    path: DC=euc,DC=vmware,DC=lan
-    protected: false
-    properties:
-      city: Atlanta
+    name: ws1users
+    path: "OU=users,DC=euc,DC=vmware,DC=lan"
+    location:
+      city: Sandy Springs
       state: Georgia
-      managed_by: jzollo@vmware.com
-  delegate_to: win-ad1.euc.vmware.lab
+      street_address: 1155 Perimeter Center West
+      country: US
+      postal_code: 30189
+    other_attributes:
+      facsimileTelephoneNumber: 404-555-5555
 '''
 
 RETURN = r'''
@@ -157,16 +178,17 @@ ou:
     name:
     guid:
     distinguished_name:
-    canonoical_name:
     created:
     modified:
     protected:
-    properties:
-      display_name:
-      description:
+    display_name:
+    description:
+    managed_by:
+    location:
       city:
+      state: 
       street_address:
       postal_code:
       country:
-      managed_by:
+    attributes:
 '''

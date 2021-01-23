@@ -1,20 +1,24 @@
-# Ansible Collection: Windows Server [WORK IN PROGRESS]
+# Ansible Collection: Windows Server [WIP]
 
-This repo hosts the `joezollo.windows.server` Ansible Collection.
+This repo hosts the `joezollo.windows` Ansible Collection.
 
 The collection includes a variety of Ansible content to help automate the management of Windows Server.
 
-## Included content
+## Included Content
 
 Click on the name of a plugin or module to view that content's documentation:
 
-  - **Modules**:
-    - [win_dhcp_lease]()
-    - [win_dhcp_scope]()
-    - [win_dhcp_info]()
-    - [win_dns_zone]()
-    - [win_dns_info]()
+- **Modules: Complete**:
+  - win_dhcp_lease
+  - win_dhcp_info
+  - win_dns_zone
+  - win_dns_info
+  - win_domain_ou
 
+- **Modules: Planned**:
+  - win_dhcp_scope
+  - win_ntp_client
+  
 ## Installation and Usage
 
 ### Installing the Collection from Ansible Galaxy
@@ -29,22 +33,20 @@ You can also include it in a `requirements.yml` file and install it via `ansible
 ---
 collections:
   - name: joezollo.windows.server
-    version: 1.0.0
+    version: 0.0.0
 ```
 
-### Using modules from the DHCP Collection in your playbooks
+### Using modules from the Windows Server Collection in your playbooks
 
-You can either call modules by their Fully Qualified Collection Namespace (FQCN), like `joezollo.windows.server.win_dhcp_lease`, or you can call modules by their short name if you list the `joezollo.windows.server` collection in the playbook's `collections`, like so:
+You can either call modules by their Fully Qualified Collection Namespace (FQCN), like `joezollo.windows.win_dhcp_lease`, or you can call modules by their short name if you list the `joezollo.windows.server` collection in the playbook's `collections`, like so:
 
 ```yaml
 ---
 - hosts: localhost
   gather_facts: false
   connection: local
-
   collections:
-    - joezollo.windows.server
-
+    - joezollo.windows
   tasks:
     - name: Ensure the DHCP scope exists
       win_dhcp_scope:
@@ -70,12 +72,6 @@ You can run the collection's test suites with the commands:
 
     ansible-test sanity --docker -v --color
     ansible-test integration --docker -v --color
-
-### Testing with `molecule`
-
-There are also integration tests in the `molecule` directory which are meant to be run against a local DNS or DHCP server.
-
-    molecule test
 
 ## Publishing New Versions
 
