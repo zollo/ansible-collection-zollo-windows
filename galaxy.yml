@@ -1,29 +1,18 @@
 namespace: joezollo
 name: windows
-version: 1.0.0
+version: 0.1.0
 readme: README.md
 authors:
-- Joe Zollo <joe@zollo.net>
-description: your collection description
+  - Joe Zollo <joe@zollo.net>
+description: A set of Windows Modules
 license:
-- GPL-2.0-or-later
-license_file: ''
+- GPL-3.0-or-later
+license_file: LICENSE
 tags: []
-
-# Collections that this collection requires to be installed for it to be usable. The key of the dict is the
-# collection label 'namespace.name'. The value is a version range
-# L(specifiers,https://python-semanticversion.readthedocs.io/en/latest/#requirement-specification). Multiple version
-# range specifiers can be set and are separated by ','
 dependencies: {}
-
-# The URL of the originating SCM repository
-repository: http://github.com/joezollo/ansible-collection-windows-server
+repository: http://github.com/joezollo/ansible-collection-zollo-windows
 
 # The URL to any online docs
-documentation: http://docs.example.com
-
-# The URL to the homepage of the collection/project
+documentation: https://github.com/joezollo/ansible-collection-zollo-windows/wiki
 homepage: http://github.com/joezollo
-
-# The URL to the collection issue tracker
-issues: http://example.com/issue/tracker
+issues: https://github.com/joezollo/ansible-collection-zollo-windows/issues

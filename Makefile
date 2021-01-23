@@ -11,8 +11,7 @@ CL_NAME=windows
 
 test:
 	docker pull ${IMG}
-	docker run \
-		--rm \
+	docker run --rm \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v "${CI_PWD}:${CL_PATH}" \
 		-e "T=${T}" \
@@ -21,9 +20,7 @@ test:
 
 console:
 	docker pull ${IMG}
-	docker run \
-		-it \
-		--rm \
+	docker run -it --rm \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v "${CI_PWD}:${CL_PATH}" \
 		-e "T=${T}" \
@@ -32,8 +29,7 @@ console:
 
 build:
 	docker pull ${IMG}
-	docker run \
-		--rm \
+	docker run --rm \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v "${CI_PWD}:${CL_PATH}" \
 		-w "${CL_PATH}" \
