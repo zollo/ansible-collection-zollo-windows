@@ -1,4 +1,4 @@
-namespace: joezollo
+namespace: zollo
 name: windows
 version: 0.1.0
 readme: README.md
@@ -10,9 +10,9 @@ license:
 license_file: LICENSE
 tags: []
 dependencies: {}
-repository: http://github.com/joezollo/ansible-collection-zollo-windows
+repository: http://github.com/zollo/ansible-collection-zollo-windows
 
 # The URL to any online docs
-documentation: https://github.com/joezollo/ansible-collection-zollo-windows/wiki
-homepage: http://github.com/joezollo
-issues: https://github.com/joezollo/ansible-collection-zollo-windows/issues
+documentation: https://github.com/zollo/ansible-collection-zollo-windows/wiki
+homepage: http://github.com/zollo
+issues: https://github.com/zollo/ansible-collection-zollo-windows/issues
