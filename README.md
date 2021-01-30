@@ -93,7 +93,7 @@ The current process for publishing new versions of the DNS/DHCP Collection is ma
 
     ```yaml
     ansible-galaxy collection build
-    ansible-galaxy collection publish ./joezollo-windows-server-$VERSION_HERE.tar.gz
+    ansible-galaxy collection publish ./zollo-windows-$VERSION_HERE.tar.gz
     ```
 
 After the version is published, verify it exists on the [Windows Server Collection Galaxy page](https://galaxy.ansible.com/).
