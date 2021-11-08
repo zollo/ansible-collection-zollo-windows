@@ -22,10 +22,18 @@ $win_installer_obj = New-Object -com WindowsInstaller.Installer
 
 Try {
     [IO.FileInfo[]]$path_object = $path
-    $msi_db = $win_installer_obj.GetType().InvokeMember("OpenDatabase","InvokeMethod",$Null,$win_installer_obj,@($path_object.FullName, 0))
-    $open_view = $msi_db.GetType().InvokeMember("OpenView","InvokeMethod",$Null,$msi_db,("SELECT * FROM Property"))
-    $open_view.GetType().InvokeMember("Execute","InvokeMethod",$Null,$open_view,$Null)
-    $fetch_record = $open_view.GetType().InvokeMember("Fetch","InvokeMethod",$Null,$open_view,$Null)
+    $msi_db = $win_installer_obj.GetType().InvokeMember(
+        "OpenDatabase","InvokeMethod",$Null,$win_installer_obj,@($path_object.FullName, 0)
+    )
+    $open_view = $msi_db.GetType().InvokeMember(
+        "OpenView","InvokeMethod",$Null,$msi_db,("SELECT * FROM Property")
+    )
+    $open_view.GetType().InvokeMember(
+        "Execute","InvokeMethod",$Null,$open_view,$Null
+    )
+    $fetch_record = $open_view.GetType().InvokeMember(
+        "Fetch","InvokeMethod",$Null,$open_view,$Null
+    )
 
     while ($fetch_record -ne $null) {
         # generate key value from property value
