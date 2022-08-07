@@ -132,6 +132,8 @@ EXAMPLES = r'''
   community.windows.win_domain_ou:
     name: EUC Users
     protected: true
+    attributes:
+      
 
 - name: Ensure OU is absent
   community.windows.win_domain_ou:
