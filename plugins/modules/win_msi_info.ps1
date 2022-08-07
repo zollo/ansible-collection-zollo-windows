@@ -22,21 +22,49 @@ $win_installer_obj = New-Object -com WindowsInstaller.Installer
 
 Try {
     [IO.FileInfo[]]$path_object = $path
-    $msi_db = $win_installer_obj.GetType().InvokeMember("OpenDatabase","InvokeMethod",$Null,$win_installer_obj,@($path_object.FullName, 0))
-    $open_view = $msi_db.GetType().InvokeMember("OpenView","InvokeMethod",$Null,$msi_db,("SELECT * FROM Property"))
-    $open_view.GetType().InvokeMember("Execute","InvokeMethod",$Null,$open_view,$Null)
-    $fetch_record = $open_view.GetType().InvokeMember("Fetch","InvokeMethod",$Null,$open_view,$Null)
 
-    while ($fetch_record -ne $null) {
+    $msi_db = $win_installer_obj.GetType().InvokeMember(
+        "OpenDatabase", "InvokeMethod", $Null, $win_installer_obj, @(
+            $path_object.FullName, 0
+        )
+    )
+
+    $open_view = $msi_db.GetType().InvokeMember(
+        "OpenView", "InvokeMethod", $Null, $msi_db, (
+            "SELECT * FROM Property"
+        )
+    )
+
+    $open_view.GetType().InvokeMember(
+        "Execute", "InvokeMethod", $Null, $open_view, $Null
+    )
+
+    # fetch the first record
+    $fetch_record = $open_view.GetType().InvokeMember(
+        "Fetch", "InvokeMethod", $Null, $open_view, $Null
+    )
+
+    while ($null -ne $fetch_record) {
         # generate key value from property value
-        $k = $fetch_record.GetType().InvokeMember("StringData", "GetProperty", $Null, $fetch_record, 1)
+        $k = $fetch_record.GetType().InvokeMember(
+            "StringData", "GetProperty", $Null, $fetch_record, 1
+        )
+
         # populate value and append to hash table
-        $module.Result.properties[$k] = $fetch_record.GetType().InvokeMember("StringData", "GetProperty", $Null, $fetch_record, 2)
-        $fetch_record = $open_view.GetType().InvokeMember("Fetch","InvokeMethod",$Null,$open_view,$Null)
+        $module.Result.properties[$k] = $fetch_record.GetType().InvokeMember(
+            "StringData", "GetProperty", $Null, $fetch_record, 2
+        )
+
+        # fetch the inext record
+        $fetch_record = $open_view.GetType().InvokeMember(
+            "Fetch", "InvokeMethod", $Null, $open_view, $Null
+        )
     }
 }
 Catch {
-    $module.FailJson("Unable to query MSI database: $($_.Exception.Message)", $_)
+    $module.FailJson(
+        "Unable to query MSI database: $($_.Exception.Message)", $_
+    )
 }
 
 $module.ExitJson()

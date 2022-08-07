@@ -23,7 +23,8 @@ Click on the name of a plugin or module to view that content's documentation:
   - win_msi_info
   - win_gp_info
   - win_ntp_client
-  
+  - win_domain_info
+
 ## Installation and Usage
 
 ### Installing the Collection from Ansible Galaxy
